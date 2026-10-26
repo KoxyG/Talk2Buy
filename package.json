@@ -1,0 +1,16 @@
+{
+  "name": "talk2buy",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "ping": "pnpm --filter @talk2buy/agent ping",
+    "eval": "pnpm --filter @talk2buy/eval run eval",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^20.16.10"
+  }
+}
