@@ -5,16 +5,16 @@ type Target = { label: string; baseUrl?: string; apiKey?: string; model?: string
 
 const targets: Target[] = [
   {
-    label: "Muse Glimmer (Baseten)",
-    baseUrl: process.env.BASETEN_BASE_URL,
-    apiKey: process.env.BASETEN_API_KEY,
-    model: process.env.GLIMMER_MODEL_ID,
-  },
-  {
     label: "Muse Spark 1.3 (Meta Model API)",
     baseUrl: process.env.META_BASE_URL,
     apiKey: process.env.META_API_KEY,
     model: process.env.SPARK_MODEL_ID,
+  },
+  {
+    label: "Muse Wonder (Meta Model API)",
+    baseUrl: process.env.META_BASE_URL,
+    apiKey: process.env.META_API_KEY,
+    model: process.env.WONDER_MODEL_ID,
   },
 ];
 
@@ -35,7 +35,7 @@ async function ping(t: Target): Promise<boolean> {
       body: JSON.stringify({
         model: t.model,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
+        max_tokens: 2000, // reasoning models spend most of the budget thinking before replying
       }),
       signal: AbortSignal.timeout(30_000),
     });

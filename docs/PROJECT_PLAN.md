@@ -43,14 +43,14 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 
 | Role | Model | Where it runs |
 |---|---|---|
-| Core agent (default) | Muse Glimmer (Meta open weights) | Baseten |
-| Comparison and fallback | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
+| Core agent (default) | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
+| Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
 | Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
-| Product search embeddings | BGE-M3 (open-source, not Meta) | Baseten or Modal |
+| Product search embeddings | BGE-M3 (open-source, not Meta) | Modal |
 | Voice input (stretch) | Muse Voice Transcribe | Meta Model API |
 | Coding assistant | Muse Code | Local terminal |
 
-Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, use the Meta open-weights model it does serve.
+Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and both chat models already run on Meta Model API credits.
 
 ## Repository structure
 
@@ -114,10 +114,10 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
 ### Day 1, Mon Oct 26: Setup and test set
 
 - Watch the kickoff, accept the Official Rules, read the submission requirements and any rules on projects tied to an existing company.
-- Claim Baseten, Modal and Fireworks credits; confirm model IDs.
+- Claim Meta Model API and Modal credits; confirm model IDs.
 - Create the repo with the structure above.
 - Write 50 test requests, half in Pidgin: 20 food, 20 groceries (including 8 shopping lists), 10 payment or delivery questions. Each has the expected tool and filters.
-- **Done when:** a test message reaches both Muse Glimmer and Muse Spark 1.3 and gets a reply.
+- **Done when:** a test message reaches both Muse Spark 1.3 and Muse Wonder and gets a reply.
 
 ### Day 2, Tue Oct 27: Data and search
 
@@ -153,7 +153,7 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
 
 ### Day 6, Sat Oct 31: Evaluate and tune
 
-- Run all 50 test requests through Muse Glimmer and Muse Spark 1.3.
+- Run all 50 test requests through Muse Spark 1.3 and Muse Wonder.
 - Score correct tool, correct filters, correct cart contents and response time.
 - Improve the prompt and tool descriptions for failures, then re-run.
 - Choose the default model.
@@ -169,7 +169,7 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
 ### Day 8, Mon Nov 2: Fix and stretch
 
 - Fix the top failures from Day 7 and re-run the evaluation.
-- If time allows, add one stretch item: daily essentials data, voice input, or product-photo search with Muse Image.
+- If time allows, add one stretch item: daily essentials data, voice input (Muse Voice Transcribe), or product-photo search (only if a Meta model that reads images is available).
 - **Done when:** the evaluation score is equal to or better than Day 6.
 
 ### Day 9, Tue Nov 3: Ship and record
@@ -188,7 +188,7 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
 
 | Risk | Fallback |
 |---|---|
-| Muse Glimmer not available on Baseten | Use the Meta open-weights model Baseten serves, or Muse Spark 1.3 as the default |
+| Meta Model API credits run low (reasoning tokens are most of each reply) | Set a $150 spend limit, cap `max_tokens`, and run the full eval only twice |
 | Weak Pidgin understanding | Add Pidgin examples to the prompt and local names to product descriptions |
 | Messy grocery data (inconsistent units and sizes) | Clean a smaller set of the most common 100 grocery products first |
 | Shopping lists split across many shops | Prefer the fewest shops that cover the list; show which items come from where |
@@ -233,3 +233,29 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
   no photo. Day 9: demo page and video assets. Never generate fake photos of branded products, and
   never put prices in generated images. Product-photo *search* needs a model that reads images;
   check at kickoff whether Muse Spark 1.3 does, otherwise drop that stretch item.
+
+## Amendments (Oct 26, integration)
+
+- **Data source: Choppaddi testnet API.** Choppaddi stays the source of truth for products,
+  prices, stock, orders and payments. Supabase holds only Talk2Buy's own data: the product search
+  index (embeddings, cleaned units, local names), carts, conversations, `pidgin_glossary` and
+  `eval_runs`.
+- **Store adapter:** tools never call a store's API directly. Each host project gets one adapter
+  with `listProducts`, `getProduct`, `createOrder`, `getOrderStatus`, `getPaymentStatus` and
+  `getDeliveryEta`. Choppaddi is the first (`adapters/choppaddi.ts`); a new store needs only a new
+  adapter.
+- **Product sync:** load all products into the search index once, then refresh on a schedule.
+  `build_cart` and `create_order` re-check the latest price and stock with `getProduct` first.
+- **Project registration:** each host project has a project ID, allowed domains and a server key
+  for its API (in `.env`). The agent API rejects requests from domains that aren't allowed.
+- **Widget settings:** project ID, language, theme colour and a `getUserToken` callback, set with
+  script-tag attributes or React props. Styles are isolated from the host page.
+- **Logged-in customers:** the host's backend issues a short-lived user token, the widget sends
+  it with each message, and the agent verifies it with the host. Orders go to that customer's
+  account. Guests can browse and build a cart, and log in at checkout.
+- **Checkout stays with the host:** the confirm button creates the order through the adapter, and
+  payment runs on the host's system. Talk2Buy only reads payment status.
+- **Still needed from Choppaddi:** testnet API base URL, auth method, and endpoints for products,
+  shops, orders and payment status, plus a user-token endpoint for Step 4.
+- **Day 2 fallback:** if the API details aren't ready, start with about 50 hand-written sample
+  products behind the same adapter interface, and swap to Choppaddi when ready.

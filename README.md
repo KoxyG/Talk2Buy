@@ -26,9 +26,9 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 
 | Role | Model | Runs on |
 |---|---|---|
-| Core agent | Muse Glimmer (Meta open weights) | Baseten |
-| Comparison and fallback | Muse Spark 1.3 | Meta Model API |
-| Product search embeddings | BGE-M3 | Baseten or Modal |
+| Core agent | Muse Spark 1.3 | Meta Model API |
+| Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
+| Product search embeddings | BGE-M3 | Modal |
 | Voice input (planned) | Muse Voice Transcribe | Meta Model API |
 | Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 
@@ -47,7 +47,7 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 Requires Node 20+ and pnpm 9.
 
     pnpm install
-    cp .env.example .env   # add your Baseten, Meta and Supabase keys
+    cp .env.example .env   # add your Meta and Supabase keys
     pnpm ping              # check that both models respond
 
 ## Project plan
