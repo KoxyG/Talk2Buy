@@ -46,11 +46,14 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 | Core agent (default) | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
 | Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
-| Product search embeddings | BGE-M3 (open-source, not Meta) | Modal |
 | Voice input (stretch) | Muse Voice Transcribe | Meta Model API |
 | Coding assistant | Muse Code | Local terminal |
 
 Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and both chat models already run on Meta Model API credits.
+
+Embeddings were dropped on Oct 26: the model rewrites Pidgin into a plain search query, and
+Postgres full-text and trigram search match it against product names and local names. No Modal
+needed.
 
 ## Repository structure
 
@@ -83,7 +86,7 @@ Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and 
 ## Database schema
 
 - **shops:** id, name, type (restaurant, grocery, essentials), area, opening hours, average prep time
-- **products:** id, shop_id, name, category, description, local names, unit, size, price, in_stock, embedding
+- **products:** id, shop_id, name, category, description, local names, unit, size, price, in_stock
 - **carts:** id, session_id, items, total, items_not_found
 - **orders:** id, cart_id, shop_id, items, total, status (pending, confirmed, paid, failed)
 - **conversations:** session_id, messages, created_at
@@ -114,18 +117,18 @@ Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and 
 ### Day 1, Mon Oct 26: Setup and test set
 
 - Watch the kickoff, accept the Official Rules, read the submission requirements and any rules on projects tied to an existing company.
-- Claim Meta Model API and Modal credits; confirm model IDs.
+- Claim Meta Model API credits; confirm model IDs.
 - Create the repo with the structure above.
 - Write 50 test requests, half in Pidgin: 20 food, 20 groceries (including 8 shopping lists), 10 payment or delivery questions. Each has the expected tool and filters.
 - **Done when:** a test message reaches both Muse Spark 1.3 and Muse Wonder and gets a reply.
 
 ### Day 2, Tue Oct 27: Data and search
 
-- Set up Postgres with pgvector on Supabase or Neon.
+- Set up Postgres on Supabase with the `pg_trgm` extension for typo-tolerant matching.
 - Load a read-only snapshot of real food and grocery products.
 - Normalise units and sizes (5kg, 1 carton, 1 tin) so quantities can be matched.
 - Add local names to descriptions, such as swallow, small chops, garri, Indomie, Omo.
-- Generate BGE-M3 embeddings for every product.
+- Add full-text and trigram search indexes on name, description and local names.
 - Build `search_products` and `get_product` with hard filters for category, budget, in stock, open now and area.
 - **Done when:** "rice under ₦3,000" and "5kg rice" both return only matching real products.
 
@@ -189,6 +192,7 @@ Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and 
 | Risk | Fallback |
 |---|---|
 | Meta Model API credits run low (reasoning tokens are most of each reply) | Set a $150 spend limit, cap `max_tokens`, and run the full eval only twice |
+| Keyword search misses vague requests ("something sweet to drink") | Add BGE-M3 embeddings on Modal as an extra ranking step; the search interface stays the same |
 | Weak Pidgin understanding | Add Pidgin examples to the prompt and local names to product descriptions |
 | Messy grocery data (inconsistent units and sizes) | Clean a smaller set of the most common 100 grocery products first |
 | Shopping lists split across many shops | Prefer the fewest shops that cover the list; show which items come from where |
@@ -238,7 +242,7 @@ Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and 
 
 - **Data source: Choppaddi testnet API.** Choppaddi stays the source of truth for products,
   prices, stock, orders and payments. Supabase holds only Talk2Buy's own data: the product search
-  index (embeddings, cleaned units, local names), carts, conversations, `pidgin_glossary` and
+  index (cleaned units, local names, search indexes), carts, conversations, `pidgin_glossary` and
   `eval_runs`.
 - **Store adapter:** tools never call a store's API directly. Each host project gets one adapter
   with `listProducts`, `getProduct`, `createOrder`, `getOrderStatus`, `getPaymentStatus` and

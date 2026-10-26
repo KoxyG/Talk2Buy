@@ -28,7 +28,6 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 |---|---|---|
 | Core agent | Muse Spark 1.3 | Meta Model API |
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
-| Product search embeddings | BGE-M3 | Modal |
 | Voice input (planned) | Muse Voice Transcribe | Meta Model API |
 | Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 
