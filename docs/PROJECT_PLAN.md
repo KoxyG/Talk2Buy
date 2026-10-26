@@ -51,8 +51,8 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 
 Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and both chat models already run on Meta Model API credits.
 
-Embeddings were dropped on Oct 26: the model rewrites Pidgin into a plain search query, and
-Postgres full-text and trigram search match it against product names and local names. No Modal
+Embeddings were dropped on Oct 26: the model rewrites Pidgin into a plain search query (using
+`pidgin_glossary` for local names), and the host store's own search finds the products. No Modal
 needed.
 
 ## Repository structure
@@ -85,8 +85,8 @@ needed.
 
 ## Database schema
 
-- **shops:** id, name, type (restaurant, grocery, essentials), area, opening hours, average prep time
-- **products:** id, shop_id, name, category, description, local names, unit, size, price, in_stock
+- **projects:** id, name, allowed_domains
+- Products and shops are not stored. Tools read them live from the host store through its adapter.
 - **carts:** id, session_id, items, total, items_not_found
 - **orders:** id, cart_id, shop_id, items, total, status (pending, confirmed, paid, failed)
 - **conversations:** session_id, messages, created_at
@@ -124,12 +124,15 @@ needed.
 
 ### Day 2, Tue Oct 27: Data and search
 
-- Set up Postgres on Supabase with the `pg_trgm` extension for typo-tolerant matching.
-- Load a read-only snapshot of real food and grocery products.
-- Normalise units and sizes (5kg, 1 carton, 1 tin) so quantities can be matched.
-- Add local names to descriptions, such as swallow, small chops, garri, Indomie, Omo.
-- Add full-text and trigram search indexes on name, description and local names.
-- Build `search_products` and `get_product` with hard filters for category, budget, in stock, open now and area.
+- Create the Talk2Buy tables on Supabase (`001_init.sql`).
+- Build the store adapter interface and a sample adapter with about 50 products.
+- Seed `pidgin_glossary` with local names, such as swallow, small chops, garri, Indomie, Omo.
+- Automatic typo correction, without asking the customer: the model spells the query correctly,
+  each word is fuzzy-matched against `pidgin_glossary`, and a search with no results is retried
+  once with the closest glossary match.
+- Build `search_products` and `get_product` on the adapter. Filters the host's search can't
+  apply (budget, in stock, open now, area, size) are applied to its results.
+- Build the Choppaddi adapter once its API details arrive.
 - **Done when:** "rice under ₦3,000" and "5kg rice" both return only matching real products.
 
 ### Day 3, Wed Oct 28: Agent loop
@@ -192,9 +195,9 @@ needed.
 | Risk | Fallback |
 |---|---|
 | Meta Model API credits run low (reasoning tokens are most of each reply) | Set a $150 spend limit, cap `max_tokens`, and run the full eval only twice |
-| Keyword search misses vague requests ("something sweet to drink") | Add BGE-M3 embeddings on Modal as an extra ranking step; the search interface stays the same |
+| Host store's search is weak (no typo or partial matching) | Automatic typo correction (model, glossary fuzzy match, one retry); if still weak, add a Talk2Buy search index synced from the host |
 | Weak Pidgin understanding | Add Pidgin examples to the prompt and local names to product descriptions |
-| Messy grocery data (inconsistent units and sizes) | Clean a smaller set of the most common 100 grocery products first |
+| Messy grocery data (inconsistent units and sizes) | Normalise units inside the adapter for the most common 100 grocery products first |
 | Shopping lists split across many shops | Prefer the fewest shops that cover the list; show which items come from where |
 | Not enough real testers | Recruit friends and family in Asaba and Enugu; run tests over a call |
 | Backend integration takes too long | Use a mock orders service with the same interface for the demo |
@@ -241,15 +244,14 @@ needed.
 ## Amendments (Oct 26, integration)
 
 - **Data source: Choppaddi testnet API.** Choppaddi stays the source of truth for products,
-  prices, stock, orders and payments. Supabase holds only Talk2Buy's own data: the product search
-  index (cleaned units, local names, search indexes), carts, conversations, `pidgin_glossary` and
-  `eval_runs`.
+  shops, prices, stock, orders and payments, read live. Supabase holds only Talk2Buy's own data:
+  projects, carts, conversations, `pidgin_glossary` and `eval_runs`.
 - **Store adapter:** tools never call a store's API directly. Each host project gets one adapter
-  with `listProducts`, `getProduct`, `createOrder`, `getOrderStatus`, `getPaymentStatus` and
+  with `searchProducts`, `getProduct`, `createOrder`, `getOrderStatus`, `getPaymentStatus` and
   `getDeliveryEta`. Choppaddi is the first (`adapters/choppaddi.ts`); a new store needs only a new
   adapter.
-- **Product sync:** load all products into the search index once, then refresh on a schedule.
-  `build_cart` and `create_order` re-check the latest price and stock with `getProduct` first.
+- **Live prices:** `build_cart` and `create_order` re-check the latest price and stock with
+  `getProduct` first.
 - **Project registration:** each host project has a project ID, allowed domains and a server key
   for its API (in `.env`). The agent API rejects requests from domains that aren't allowed.
 - **Widget settings:** project ID, language, theme colour and a `getUserToken` callback, set with
@@ -259,7 +261,8 @@ needed.
   account. Guests can browse and build a cart, and log in at checkout.
 - **Checkout stays with the host:** the confirm button creates the order through the adapter, and
   payment runs on the host's system. Talk2Buy only reads payment status.
-- **Still needed from Choppaddi:** testnet API base URL, auth method, and endpoints for products,
-  shops, orders and payment status, plus a user-token endpoint for Step 4.
+- **Still needed from Choppaddi:** testnet API base URL, auth method, and endpoints for product
+  search (by text, with price and area filters if available), product details, shops, orders and
+  payment status, plus a user-token endpoint for Step 4.
 - **Day 2 fallback:** if the API details aren't ready, start with about 50 hand-written sample
   products behind the same adapter interface, and swap to Choppaddi when ready.
