@@ -45,7 +45,7 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 |---|---|---|
 | Core agent (default) | Muse Glimmer (Meta open weights) | Baseten |
 | Comparison and fallback | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
-| Product-photo search (stretch) | Muse Image | Meta Model API |
+| Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 | Product search embeddings | BGE-M3 (open-source, not Meta) | Baseten or Modal |
 | Voice input (stretch) | Muse Voice Transcribe | Meta Model API |
 | Coding assistant | Muse Code | Local terminal |
@@ -228,3 +228,8 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
   button in the widget. Day 8: transcribe speech into the input box for the customer to check
   before sending, auto-send when they stop talking, keep only the main speaker. Transcripts go
   through the same agent and rules as typed messages.
+- **Muse Image 1.0 for product visuals:** Day 2: clean up weak vendor photos (image-to-image,
+  product must stay unchanged) and generate labelled "Illustration" placeholders for products with
+  no photo. Day 9: demo page and video assets. Never generate fake photos of branded products, and
+  never put prices in generated images. Product-photo *search* needs a model that reads images;
+  check at kickoff whether Muse Spark 1.3 does, otherwise drop that stretch item.

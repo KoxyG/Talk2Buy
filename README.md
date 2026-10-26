@@ -30,6 +30,7 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 | Comparison and fallback | Muse Spark 1.3 | Meta Model API |
 | Product search embeddings | BGE-M3 | Baseten or Modal |
 | Voice input (planned) | Muse Voice Transcribe | Meta Model API |
+| Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 
 ## Safety by design
 
