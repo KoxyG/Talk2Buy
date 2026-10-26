@@ -47,6 +47,7 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 | Comparison and fallback | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
 | Product-photo search (stretch) | Muse Image | Meta Model API |
 | Product search embeddings | BGE-M3 (open-source, not Meta) | Baseten or Modal |
+| Voice input (stretch) | Muse Voice Transcribe | Meta Model API |
 | Coding assistant | Muse Code | Local terminal |
 
 Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, use the Meta open-weights model it does serve.
@@ -203,3 +204,27 @@ Confirm at kickoff that Baseten serves Muse Glimmer for the hackathon. If not, u
 - [ ] Evaluation results table
 - [ ] Note on which Meta models were used and why
 - [ ] Real user test summary
+
+## Amendments (Oct 26)
+
+- **`lookup_term` tool (Pidgin/slang fallback):** if a term is unclear, or `search_products`
+  finds nothing for an unknown word, check `pidgin_glossary` first, then search the web
+  (Brave Search) for `"<term>" Nigerian Pidgin meaning`. Return only
+  `{ meaning, normalized_query, source, confidence }`, never products or prices.
+  Web results are saved to the glossary as unverified. Limits: 3s timeout, one web lookup per turn.
+  If it's still unclear, ask the customer one short question.
+- **New table `pidgin_glossary`:** id, term, meaning, normalized_query, source (glossary, web),
+  verified, created_at.
+- **`confirm_order` is not a model tool:** it becomes `POST /orders/:id/confirm`, called only by
+  the widget's confirm button.
+- **The server sets `session_id`:** tools take the session from the request, and any `cart_id` or
+  `order_id` must belong to that session.
+- **Eval checks for invented prices:** every ₦ amount in a reply must appear in that turn's
+  tool results.
+- **Mock orders service first:** build it behind the orders interface on Day 4, and swap in the
+  sandbox when it's ready.
+- **Day 3:** build `lookup_term` and seed the glossary. **Eval:** include about 5 slang-heavy requests.
+- **Voice input with Muse Voice Transcribe:** first-priority stretch item. Day 5: placeholder mic
+  button in the widget. Day 8: transcribe speech into the input box for the customer to check
+  before sending, auto-send when they stop talking, keep only the main speaker. Transcripts go
+  through the same agent and rules as typed messages.

@@ -1,0 +1,9 @@
+{
+  "name": "@talk2buy/agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ping": "tsx --env-file=../../.env scripts/ping-models.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}
