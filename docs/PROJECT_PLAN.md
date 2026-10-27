@@ -26,7 +26,7 @@ Example requests Talk2Buy should handle:
 - A customer can go from a free-text request in English or Pidgin to a confirmed test order in under 2 minutes.
 - A shopping list of 4 or more items becomes one cart with a correct total, split across shops where needed.
 - At least 40 of 50 test requests (80%) handled correctly by the chosen model.
-- At least 5 real customers complete an order through the beta page.
+- At least 2 real people complete an order (Choppaddi beta page, or a test order on the demo page).
 - Zero cases of the assistant stating a price that did not come from the database.
 
 ## Product approach
@@ -45,11 +45,15 @@ During testing, the same widget is embedded on a hidden beta page on the Choppad
 |---|---|---|
 | Core agent (default) | Muse Spark 1.3 (use the standard ID, not contributor) | Meta Model API |
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
+| Comparison (open weights) | Muse Spark Open (`meta-models/muse-spark-open-1026`) | Baseten |
 | Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 | Voice input (stretch) | Muse Voice Transcribe | Meta Model API |
 | Coding assistant | Muse Code | Local terminal |
 
-Baseten was dropped on Oct 26: it serves Muse Spark Open, not Muse Glimmer, and both chat models already run on Meta Model API credits.
+Baseten was dropped on Oct 26 and re-added on Oct 27, when its hackathon credits arrived ($100,
+up to 2M tokens per minute, Muse Spark Open only). Use it for eval runs to save Meta credits.
+Muse Spark Open also accepts images and audio, which could power product-photo search and voice
+input (stretch items).
 
 Embeddings were dropped on Oct 26: the model rewrites Pidgin into a plain search query (using
 `pidgin_glossary` for local names), and the host store's own search finds the products. No Modal
@@ -94,7 +98,7 @@ needed.
 
 ## System prompt outline
 
-- Role: a friendly local shopping assistant for shops in Asaba and Enugu.
+- Role: a friendly local shopping assistant for shops across Nigeria; only shows shops that deliver to the customer's city.
 - Language: understand English and Pidgin; reply in the language the customer uses.
 - Always use `search_products` or `build_cart` before recommending anything; never invent products or prices.
 - For shopping lists, use `build_cart` and clearly say which items were not found.
@@ -159,7 +163,7 @@ needed.
 
 ### Day 6, Sat Oct 31: Evaluate and tune
 
-- Run all 50 test requests through Muse Spark 1.3 and Muse Wonder.
+- Run all 50 test requests through Muse Spark 1.3, Muse Wonder and Muse Spark Open.
 - Score correct tool, correct filters, correct cart contents and response time.
 - Improve the prompt and tool descriptions for failures, then re-run.
 - Choose the default model.
@@ -167,10 +171,12 @@ needed.
 
 ### Day 7, Sun Nov 1: Real users
 
-- Embed the widget on a hidden beta page on the Choppaddi website.
-- Invite 5 to 10 real customers to place a food order and a grocery order in their own words.
+- If Choppaddi is onboarded: embed the widget on a hidden beta page on the Choppaddi website and
+  invite 3 to 5 real customers. If not: invite 3 to 5 people anywhere in Nigeria to use the
+  demo page (sample store) and pick their own city.
+- Each tester places a food order and a grocery order in their own words.
 - Log every failure and collect short feedback.
-- **Done when:** at least 5 people complete an order and the failures are listed.
+- **Done when:** at least 2 people complete an order and the failures are listed.
 
 ### Day 8, Mon Nov 2: Fix and stretch
 
@@ -199,7 +205,8 @@ needed.
 | Weak Pidgin understanding | Add Pidgin examples to the prompt and local names to product descriptions |
 | Messy grocery data (inconsistent units and sizes) | Normalise units inside the adapter for the most common 100 grocery products first |
 | Shopping lists split across many shops | Prefer the fewest shops that cover the list; show which items come from where |
-| Not enough real testers | Recruit friends and family in Asaba and Enugu; run tests over a call |
+| Not enough real testers | Recruit friends and family in any Nigerian city to use the demo page; run tests over a call |
+| Choppaddi not onboarded in time | Build and demo on the sample store; the Choppaddi adapter plugs in later with no other changes |
 | Backend integration takes too long | Use a mock orders service with the same interface for the demo |
 | Running behind schedule | Drop stretch items first, then essentials; never drop the evaluation or the demo video |
 
@@ -243,7 +250,8 @@ needed.
 
 ## Amendments (Oct 26, integration)
 
-- **Data source: Choppaddi testnet API.** Choppaddi stays the source of truth for products,
+- **Data source: Choppaddi testnet API, once Choppaddi is onboarded** (sample store until then).
+  Choppaddi stays the source of truth for products,
   shops, prices, stock, orders and payments, read live. Supabase holds only Talk2Buy's own data:
   projects, carts, conversations, `pidgin_glossary` and `eval_runs`.
 - **Store adapter:** tools never call a store's API directly. Each host project gets one adapter

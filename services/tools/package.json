@@ -1,0 +1,12 @@
+{
+  "name": "@talk2buy/tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "try-search": "tsx --env-file=../../.env scripts/try-search.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  }
+}

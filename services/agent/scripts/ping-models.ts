@@ -1,5 +1,5 @@
 // Day 1 check: send one Pidgin message to each model and print the reply and latency.
-// Both providers are called through their OpenAI-compatible /chat/completions endpoint.
+// All models are called through their OpenAI-compatible /chat/completions endpoint.
 
 type Target = { label: string; baseUrl?: string; apiKey?: string; model?: string };
 
@@ -15,6 +15,12 @@ const targets: Target[] = [
     baseUrl: process.env.META_BASE_URL,
     apiKey: process.env.META_API_KEY,
     model: process.env.WONDER_MODEL_ID,
+  },
+  {
+    label: "Muse Spark Open (Baseten)",
+    baseUrl: process.env.BASETEN_BASE_URL,
+    apiKey: process.env.BASETEN_API_KEY,
+    model: process.env.SPARK_OPEN_MODEL_ID,
   },
 ];
 
