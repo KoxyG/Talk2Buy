@@ -15,11 +15,32 @@ export const searchProductsDefinition = {
       type: "object",
       properties: {
         query: { type: "string", description: "What the customer wants, e.g. 'jollof rice' or '5kg rice'" },
-        category: { type: "string", enum: ["food", "grocery", "essentials"] },
+        category: {
+          type: "string",
+          enum: ["food", "grocery", "essentials"],
+          description: "Always set: 'food' for cooked, ready-to-eat meals and snacks; 'grocery' for raw ingredients and packaged staples (rice, beans, bread, garri, oil, milk) and household items",
+        },
         max_price: { type: "number", description: "Highest price in naira" },
         max_eta_minutes: { type: "integer", description: "Latest acceptable delivery time, in minutes from now" },
       },
       required: ["query"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+export const lookupTermDefinition = {
+  type: "function",
+  function: {
+    name: "lookup_term",
+    description:
+      "Look up what a Pidgin, slang or local food word means, before searching. Returns a meaning " +
+      "and a suggested search query, never products or prices. If confidence is 'none', ask the " +
+      "customer one short question about the word.",
+    parameters: {
+      type: "object",
+      properties: { term: { type: "string", description: "The unclear word or phrase, as the customer wrote it" } },
+      required: ["term"],
       additionalProperties: false,
     },
   },

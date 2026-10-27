@@ -3,7 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "tsx --env-file=../../.env src/server.ts",
     "ping": "tsx --env-file=../../.env scripts/ping-models.ts",
+    "try-agent": "tsx --env-file=../../.env scripts/try-agent.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "@talk2buy/tools": "workspace:*",
+    "hono": "4.13.13"
   }
 }

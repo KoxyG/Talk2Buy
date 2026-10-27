@@ -4,8 +4,8 @@ import { getAdapter, type Category, type ProductResult } from "../adapters";
 import { applyFilters, isOpen, narrowBySize } from "../search/filters";
 import { correctSpelling, LOOSE, STRICT, type Correction } from "../search/spelling";
 
-// Set by the server from the session, never by the model.
-export type ToolContext = { projectId: string; area: string; now?: Date };
+// Set by the server from the session, never by the model. budget limits slow lookups per message.
+export type ToolContext = { projectId: string; area: string; now?: Date; budget?: { webLookups: number } };
 
 const MAX_RESULTS = 5;
 const CANDIDATES = 50; // asked of the store, before filtering
@@ -29,11 +29,12 @@ export type SearchProductsResult = { query: string; corrections: Correction[]; p
 export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<SearchProductsResult> {
   const adapter = getAdapter(ctx.projectId);
   const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes, now: ctx.now ?? new Date() };
-  const find = async (query: string) =>
-    applyFilters(await adapter.searchProducts({ query, area: ctx.area, category: args.category, maxPrice: args.max_price, limit: CANDIDATES }), filters);
+  const find = async (query: string, category = args.category) =>
+    applyFilters(await adapter.searchProducts({ query, area: ctx.area, category, maxPrice: args.max_price, limit: CANDIDATES }), { ...filters, category });
 
   let { query, corrections } = await correctSpelling(args.query, STRICT);
   let found = await find(query);
+  let note: string | undefined;
 
   // One automatic retry with looser spelling correction.
   if (!found.length) {
@@ -44,8 +45,15 @@ export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext)
     }
   }
 
-  const { results, note } = narrowBySize(found, query);
-  return { query, corrections, products: results.slice(0, MAX_RESULTS).map(toCard), ...(note && { note }) };
+  // A wrong category must not hide products: retry once across all categories.
+  if (!found.length && args.category) {
+    found = await find(query, undefined);
+    if (found.length) note = `Nothing under ${args.category}; these are from other categories.`;
+  }
+
+  const narrowed = narrowBySize(found, query);
+  note = [note, narrowed.note].filter(Boolean).join(" ") || undefined;
+  return { query, corrections, products: narrowed.results.slice(0, MAX_RESULTS).map(toCard), ...(note && { note }) };
 }
 
 export type GetProductArgs = { product_id: string };

@@ -2,6 +2,9 @@
   "name": "@talk2buy/tools",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "try-search": "tsx --env-file=../../.env scripts/try-search.ts",
     "typecheck": "tsc --noEmit"
