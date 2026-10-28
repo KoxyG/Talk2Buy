@@ -7,6 +7,7 @@
     "start": "tsx --env-file=../../.env src/server.ts",
     "ping": "tsx --env-file=../../.env scripts/ping-models.ts",
     "try-agent": "tsx --env-file=../../.env scripts/try-agent.ts",
+    "try-order": "tsx --env-file=../../.env scripts/try-order.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

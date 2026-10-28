@@ -1,5 +1,5 @@
-// Day 3 check: sends single-item requests from eval/requests.jsonl through the real agent loop
-// and compares the first search_products call with the expected arguments.
+// Sends single-item and shopping-list requests from eval/requests.jsonl through the real agent
+// loop and compares the first search_products or build_cart call with the expected arguments.
 // Usage: pnpm --filter @talk2buy/agent try-agent [--model spark|wonder|spark-open] [--only F01,G02]
 
 import { readFileSync } from "node:fs";
@@ -23,11 +23,19 @@ const at = (hhmm: string) => new Date(`${new Date().toISOString().slice(0, 10)}T
 
 const cases = readFileSync(new URL("../../../eval/requests.jsonl", import.meta.url), "utf8")
   .trim().split("\n").map((line) => JSON.parse(line) as EvalCase)
-  .filter((c) => (only ? only.has(c.id) : c.expected.tool === "search_products" || c.id === "F18"));
+  .filter((c) => (only ? only.has(c.id) : ["search_products", "build_cart"].includes(c.expected.tool!) || c.id === "F18"));
 
 // Same filters as expected = pass. Query wording is shown but not scored; the Day 6 eval does that.
 const sameFilters = (expected: Record<string, unknown> = {}, actual: Record<string, unknown> = {}) =>
   ["category", "max_price", "max_eta_minutes"].every((k) => (expected[k] ?? null) === (actual[k] ?? null));
+
+// Every expected item has a matching query (one word is enough: "peak milk" ~ "peak") and the
+// same quantity when one is expected. Extra items are allowed, for lists like G20.
+type Item = { query: string; quantity?: number };
+const stem = (q: string) => q.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2).map((w) => w.replace(/s$/, ""));
+const sameItems = (expected: Item[] = [], actual: Item[] = []) =>
+  expected.every((e) => actual.some((a) =>
+    stem(e.query).some((w) => stem(a.query).includes(w)) && (e.quantity === undefined || (a.quantity ?? 1) === e.quantity)));
 
 let passed = 0;
 for (const c of cases) {
@@ -40,8 +48,12 @@ for (const c of cases) {
     model,
     now: at(c.context.now),
   });
-  const search = toolCalls.find((t) => t.name === "search_products")?.args as Record<string, unknown> | undefined;
-  const ok = c.expected.tool === null ? !search : !!search && sameFilters(c.expected.args, search);
+  const call = toolCalls.find((t) => t.name === "search_products" || t.name === "build_cart");
+  const args = call?.args as Record<string, unknown> | undefined;
+  const ok = c.expected.tool === null ? !call
+    : call?.name !== c.expected.tool ? false
+    : call.name === "build_cart" ? sameItems(c.expected.args?.items as Item[], args?.items as Item[])
+    : sameFilters(c.expected.args, args);
   if (ok) passed++;
   console.log(`${ok ? "✓" : "✗"} ${c.id} (${Math.round(performance.now() - started) / 1000}s) ${c.request}`);
   console.log(`   tools:    ${toolCalls.map((t) => `${t.name} ${JSON.stringify(t.args)}`).join(" → ") || "(none)"}`);
@@ -52,4 +64,5 @@ console.log(`${passed}/${cases.length} passed on ${model}`);
 
 // Test conversations are not kept.
 await sql`delete from conversations where session_id like 'try-agent-%'`;
+await sql`delete from carts where session_id like 'try-agent-%'`;
 await sql.end();

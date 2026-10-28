@@ -31,6 +31,8 @@ function ownOrder(orderId: string, customer: Customer): StoredOrder | null {
 }
 
 export const sampleAdapter: StoreAdapter = {
+  guestCheckout: true, // the demo page has no login
+
   async searchProducts({ query, area, category, maxPrice, limit = 20 }) {
     const terms = words(query);
     const minScore = Math.ceil(terms.length * 0.6); // most of the words must match

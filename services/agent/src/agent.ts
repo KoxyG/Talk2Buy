@@ -1,7 +1,15 @@
 // The tool-calling loop behind POST /chat: the model may call tools up to MAX_STEPS times per
 // customer message, then must reply. History is kept in the conversations table.
 
-import { runTool, sql, toolDefinitions, type SearchProductsResult, type ToolContext } from "@talk2buy/tools";
+import {
+  runTool,
+  sql,
+  toolDefinitions,
+  type CartView,
+  type CreateOrderResult,
+  type SearchProductsResult,
+  type ToolContext,
+} from "@talk2buy/tools";
 import { streamChat, type ChatMessage, type LlmEvent } from "./llm";
 import { DEFAULT_MODEL, getModel, type ModelId } from "./models";
 import { systemPrompt } from "./prompt";
@@ -11,15 +19,32 @@ const HISTORY_TURNS = 10; // customer messages kept as context
 
 export type AgentEvent =
   | { type: "text"; delta: string }
-  | { type: "products"; query: string; corrections: SearchProductsResult["corrections"]; products: SearchProductsResult["products"]; note?: string };
+  | { type: "products"; query: string; corrections: SearchProductsResult["corrections"]; products: SearchProductsResult["products"]; note?: string }
+  | { type: "cart"; cart: CartView }
+  | { type: "orders"; orders: Extract<CreateOrderResult, { status: "awaiting_confirmation" }>["orders"]; total: number };
 
-export type AgentInput = { sessionId: string; projectId: string; area: string; message: string; model?: ModelId; now?: Date };
+export type AgentInput = {
+  sessionId: string;
+  projectId: string;
+  area: string;
+  message: string;
+  userToken?: string;
+  model?: ModelId;
+  now?: Date;
+};
 export type AgentResult = { reply: string; toolCalls: { name: string; args: unknown }[] };
 
 export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void = () => {}): Promise<AgentResult> {
   const model = getModel(input.model ?? DEFAULT_MODEL);
   const now = input.now ?? new Date();
-  const ctx: ToolContext = { projectId: input.projectId, area: input.area, now, budget: { webLookups: 1 } };
+  const ctx: ToolContext = {
+    projectId: input.projectId,
+    sessionId: input.sessionId,
+    area: input.area,
+    now,
+    budget: { webLookups: 1 },
+    userToken: input.userToken,
+  };
 
   const history = await loadHistory(input.sessionId);
   const added: ChatMessage[] = [{ role: "user", content: input.message }];
@@ -57,15 +82,26 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
       const result = args === null
         ? { error: "Arguments were not valid JSON" }
         : await runTool(call.function.name, args, ctx).catch((err: Error) => ({ error: err.message }));
-      if (call.function.name === "search_products" && result && "products" in (result as object)) {
-        emit({ type: "products", ...(result as SearchProductsResult) });
-      }
+      const event = toEvent(call.function.name, result);
+      if (event) emit(event);
       added.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
     }
   }
 
   await saveHistory(input.sessionId, input.projectId, added);
   return { reply, toolCalls };
+}
+
+// What the widget shows for a tool result: product cards, the cart, or orders to confirm.
+function toEvent(tool: string, result: unknown): AgentEvent | null {
+  if (!result || typeof result !== "object" || "error" in result) return null;
+  if (tool === "search_products") return { type: "products", ...(result as SearchProductsResult) };
+  if (tool === "build_cart" || tool === "update_cart") return { type: "cart", cart: result as CartView };
+  if (tool === "create_order") {
+    const r = result as Exclude<CreateOrderResult, { error: string }>;
+    return r.status === "cart_changed" ? { type: "cart", cart: r.cart } : { type: "orders", orders: r.orders, total: r.total };
+  }
+  return null;
 }
 
 function parseArgs(raw: string): unknown {

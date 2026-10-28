@@ -29,7 +29,7 @@ const typos: [string, SearchProductsArgs, string][] = [
 
 let empty = 0;
 for (const c of cases) {
-  const r = await searchProducts(c.expected.args!, { projectId: "sample", area: c.context.area, now: at(c.context.now) });
+  const r = await searchProducts(c.expected.args!, { projectId: "sample", sessionId: "try-search", area: c.context.area, now: at(c.context.now) });
   if (!r.products.length) empty++;
   console.log(`${c.id} [${c.context.area} ${c.context.now}] ${c.expected.args!.query}`);
   console.log(`   ${r.products.map((p) => `${p.name} ₦${p.price} ${p.eta_minutes}m`).join(" | ") || "(none)"}${r.note ? `  — ${r.note}` : ""}`);
@@ -37,7 +37,7 @@ for (const c of cases) {
 console.log(`\n${cases.length - empty}/${cases.length} search cases returned products\n`);
 
 for (const [label, args, area] of typos) {
-  const r = await searchProducts(args, { projectId: "sample", area, now: at("13:00") });
+  const r = await searchProducts(args, { projectId: "sample", sessionId: "try-search", area, now: at("13:00") });
   const fixed = r.corrections.map((c) => `${c.from}→${c.to}`).join(", ") || "none";
   console.log(`typo "${label}" [${area}]: corrected ${fixed}; ${r.products.map((p) => p.name).join(" | ") || "(none)"}`);
 }

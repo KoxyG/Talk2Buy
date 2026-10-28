@@ -1,8 +1,9 @@
-// POST /chat: takes a customer message and streams back the reply and product cards as
-// server-sent events (session, text, products, done, error).
+// POST /chat: takes a customer message and streams back the reply, product cards, cart and
+// orders as server-sent events (session, text, products, cart, orders, done, error).
+// POST /orders/:id/confirm: the widget's Confirm button. The model can never confirm an order.
 
 import { serve } from "@hono/node-server";
-import { sql } from "@talk2buy/tools";
+import { confirmOrder, sql } from "@talk2buy/tools";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
@@ -38,15 +39,20 @@ const allows = (project: Project, origin: string) => {
 
 const app = new Hono();
 
-// Browsers may call /chat only from a domain some project allows.
-app.use("/chat", cors({
+// Browsers may call the API only from a domain some project allows.
+const corsForProjects = cors({
   origin: async (origin) => ([...(await getProjects()).values()].some((p) => allows(p, origin)) ? origin : null),
   allowMethods: ["POST"],
   allowHeaders: ["Content-Type"],
-}));
+});
+app.use("/chat", corsForProjects);
+app.use("/orders/*", corsForProjects);
+
+type Body = { project_id?: unknown; session_id?: unknown; message?: unknown; area?: unknown; user_token?: unknown };
+const optionalString = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
 app.post("/chat", async (c) => {
-  const body = await c.req.json().catch(() => null) as { project_id?: unknown; session_id?: unknown; message?: unknown; area?: unknown } | null;
+  const body = await c.req.json().catch(() => null) as Body | null;
   const { project_id, session_id, message, area } = body ?? {};
   if (typeof project_id !== "string" || typeof message !== "string" || typeof area !== "string" || !message.trim() || !area.trim()) {
     return c.json({ error: "project_id, message and area are required" }, 400);
@@ -71,7 +77,8 @@ app.post("/chat", async (c) => {
     try {
       // Events are written in order; the agent doesn't wait for each write.
       let writes = Promise.resolve();
-      await runAgent({ sessionId: sessionId!, projectId: project.id, area: area.trim(), message: message.trim() }, (e) => {
+      const input = { sessionId: sessionId!, projectId: project.id, area: area.trim(), message: message.trim(), userToken: optionalString(body?.user_token) };
+      await runAgent(input, (e) => {
         writes = writes.then(() => stream.writeSSE({ event: e.type, data: JSON.stringify(e) }));
       });
       await writes;
@@ -81,6 +88,27 @@ app.post("/chat", async (c) => {
       await stream.writeSSE({ event: "error", data: JSON.stringify({ message: "Something went wrong. Please try again." }) });
     }
   });
+});
+
+app.post("/orders/:id/confirm", async (c) => {
+  const body = await c.req.json().catch(() => null) as Body | null;
+  const { project_id, session_id } = body ?? {};
+  if (typeof project_id !== "string" || typeof session_id !== "string") {
+    return c.json({ error: "project_id and session_id are required" }, 400);
+  }
+  const project = (await getProjects()).get(project_id);
+  if (!project) return c.json({ error: "Unknown project" }, 404);
+  const origin = c.req.header("Origin");
+  if (origin && !allows(project, origin)) return c.json({ error: "This site is not allowed for this project" }, 403);
+
+  try {
+    const order = await confirmOrder(c.req.param("id"), { projectId: project.id, sessionId: session_id, userToken: optionalString(body?.user_token) });
+    if (!order) return c.json({ error: "Order not found" }, 404);
+    return c.json({ order });
+  } catch (err) {
+    // The store refused, e.g. the order was already confirmed.
+    return c.json({ error: (err as Error).message }, 409);
+  }
 });
 
 app.get("/health", (c) => c.json({ ok: true }));

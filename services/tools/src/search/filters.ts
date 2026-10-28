@@ -37,6 +37,11 @@ export function requestedSize(query: string): { unit: string; size?: number } | 
   return word ? { unit: word } : null;
 }
 
+// "spaghetti pack" -> "spaghetti", for stores that don't put pack words in product names.
+export function stripUnitWords(query: string): string {
+  return query.split(/\s+/).filter((w) => !UNIT_WORDS.includes(w.toLowerCase().replace(/s$/, ""))).join(" ");
+}
+
 // Keeps only the requested size when the shops have it; otherwise keeps everything and says so.
 export function narrowBySize(results: ProductResult[], query: string): { results: ProductResult[]; note?: string } {
   const wanted = requestedSize(query);

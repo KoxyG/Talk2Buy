@@ -1,11 +1,19 @@
 // search_products and get_product: the only way the model sees products and prices.
 
 import { getAdapter, type Category, type ProductResult } from "../adapters";
-import { applyFilters, isOpen, narrowBySize } from "../search/filters";
+import { applyFilters, isOpen, narrowBySize, stripUnitWords } from "../search/filters";
 import { correctSpelling, LOOSE, STRICT, type Correction } from "../search/spelling";
 
 // Set by the server from the session, never by the model. budget limits slow lookups per message.
-export type ToolContext = { projectId: string; area: string; now?: Date; budget?: { webLookups: number } };
+// userToken is the host's short-lived token for a logged-in customer.
+export type ToolContext = {
+  projectId: string;
+  sessionId: string;
+  area: string;
+  now?: Date;
+  budget?: { webLookups: number };
+  userToken?: string;
+};
 
 const MAX_RESULTS = 5;
 const CANDIDATES = 50; // asked of the store, before filtering
@@ -26,7 +34,11 @@ const toCard = (p: ProductResult): ProductCard =>
 export type SearchProductsArgs = { query: string; category?: Category; max_price?: number; max_eta_minutes?: number };
 export type SearchProductsResult = { query: string; corrections: Correction[]; products: ProductCard[]; note?: string };
 
-export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<SearchProductsResult> {
+export type FoundProducts = { query: string; corrections: Correction[]; results: ProductResult[]; note?: string };
+
+// The search behind search_products and build_cart: spelling correction, store search, filters,
+// and size narrowing. Results keep full product and shop details.
+export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<FoundProducts> {
   const adapter = getAdapter(ctx.projectId);
   const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes, now: ctx.now ?? new Date() };
   const find = async (query: string, category = args.category) =>
@@ -45,6 +57,13 @@ export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext)
     }
   }
 
+  // Pack words the store doesn't use ("spaghetti pack"): retry without them. The size note
+  // below still tells the customer.
+  if (!found.length) {
+    const plain = stripUnitWords(query);
+    if (plain && plain !== query) found = await find(plain);
+  }
+
   // A wrong category must not hide products: retry once across all categories.
   if (!found.length && args.category) {
     found = await find(query, undefined);
@@ -53,7 +72,12 @@ export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext)
 
   const narrowed = narrowBySize(found, query);
   note = [note, narrowed.note].filter(Boolean).join(" ") || undefined;
-  return { query, corrections, products: narrowed.results.slice(0, MAX_RESULTS).map(toCard), ...(note && { note }) };
+  return { query, corrections, results: narrowed.results, ...(note && { note }) };
+}
+
+export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<SearchProductsResult> {
+  const { results, ...rest } = await findProducts(args, ctx);
+  return { ...rest, products: results.slice(0, MAX_RESULTS).map(toCard) };
 }
 
 export type GetProductArgs = { product_id: string };

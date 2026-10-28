@@ -72,28 +72,39 @@ needed.
 
 ### Agent API
 
-`POST /chat` takes a session ID, the customer's message and their delivery area, and streams back the assistant's reply plus any product cards or cart summaries to display.
+`POST /chat` takes a project ID, the customer's message, their delivery area, and optionally a
+session ID and user token. It streams back server-sent events: `session`, `text`, `products`,
+`cart`, `orders`, `done` and `error`.
+
+`POST /orders/:id/confirm` takes a project ID, session ID and optional user token. Only the
+widget's Confirm button calls it, and it only confirms orders created in that session.
 
 ### Tools
 
 | Tool | Inputs | Returns | Rule |
 |---|---|---|---|
-| `search_products` | query, category, max_price, max_eta_minutes, area | Matching products with shop, price, size, stock, ETA | Real products and database prices only |
+| `search_products` | query, category, max_price, max_eta_minutes | Up to 5 matching products with shop, price, size, ETA, plus any spelling corrections or size note | Real products and store prices only |
 | `get_product` | product_id | Full product details | Read-only |
-| `build_cart` | session_id, list of requested items with quantities | Cart grouped by shop, with database totals and any items not found | Picks in-stock items; flags anything missing instead of guessing |
-| `update_cart` | cart_id, changes | Updated cart | Totals recalculated from the database |
-| `create_order` | cart_id | Pending order or orders (one per shop) | Never confirmed by the model |
-| `confirm_order` | order_id | Confirmed order | Called only by the widget's confirm button |
+| `lookup_term` | term | Meaning and suggested search query | Never returns products or prices |
+| `build_cart` | items (query, quantity, size, unit) | Cart grouped by shop, with store prices, subtotals, total and any items not found | Picks in-stock items; flags anything missing instead of guessing |
+| `update_cart` | changes (product_id or query, quantity; 0 removes) | Updated cart | Totals recalculated from store prices |
+| `create_order` | none | Pending orders (one per shop), or `cart_changed` if a price or stock changed | Never confirmed by the model |
+| `confirm_order` | order_id | Confirmed order | Not a model tool: `POST /orders/:id/confirm`, called only by the widget's confirm button |
 | `get_payment_status` | order_id | Paid, pending or failed | Read-only, cannot move money |
 | `get_delivery_eta` | order_id | Estimated arrival | Read-only |
+
+The area, session and user token come from the server, never from the model. Cart tools act on
+the session's one open cart, so the model never handles a cart ID.
 
 ## Database schema
 
 - **projects:** id, name, allowed_domains
 - Products and shops are not stored. Tools read them live from the host store through its adapter.
-- **carts:** id, session_id, items, total, items_not_found
-- **orders:** id, cart_id, shop_id, items, total, status (pending, confirmed, paid, failed)
-- **conversations:** session_id, messages, created_at
+- **carts:** id, project_id, session_id, items, total, items_not_found, order_ids. One open cart
+  per session; once ordered, a cart is closed and the next change starts a new one.
+- Orders are not stored. They live in the host store; `carts.order_ids` links them to the session.
+- **conversations:** session_id, project_id, messages, created_at
+- **pidgin_glossary:** term, meaning, normalized_query, source, verified
 - **eval_runs:** model, request, expected, actual, correct, latency
 
 ## System prompt outline
@@ -109,7 +120,7 @@ needed.
 
 ## Safety and privacy rules
 
-- Prices and totals come only from the database.
+- Prices and totals come only from the store, through its adapter.
 - No order is placed without the customer pressing confirm.
 - The agent can read payment status but cannot start or move payments.
 - Phone numbers and addresses stay in the backend; tools look them up by session ID.
@@ -274,3 +285,21 @@ needed.
   payment status, plus a user-token endpoint for Step 4.
 - **Day 2 fallback:** if the API details aren't ready, start with about 50 hand-written sample
   products behind the same adapter interface, and swap to Choppaddi when ready.
+
+## Amendments (Oct 28, Day 4)
+
+- **No cart_id in tools:** `update_cart` and `create_order` act on the session's open cart. The
+  model has no ID to get wrong and can't reach another session's cart.
+- **Ordering is two steps:** `create_order` creates pending orders in the host store after the
+  customer says yes in chat, and the Confirm button confirms them. This replaces "the confirm
+  button creates the order" in the Oct 26 amendments.
+- **Price re-check:** `create_order` re-checks every price and stock level first. If anything
+  changed, it updates the cart and returns `cart_changed` instead of ordering.
+- **Fewer split orders:** when a shop already in the cart sells an equivalent product (same
+  category, unit and size), the cart uses that shop instead of splitting the order.
+- **Guest checkout:** a store adapter sets `guestCheckout`. The sample store allows guests
+  because the demo has no login; real stores need a logged-in customer.
+- **User token:** `/chat` and the confirm endpoint accept a `user_token` and pass it to the
+  adapter. Checking it with the host belongs in the Choppaddi adapter.
+- **Searches retry:** a search that finds nothing tries looser spelling, then without pack words
+  ("spaghetti pack"), then across all categories, and says so in a note.

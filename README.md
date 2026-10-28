@@ -34,7 +34,7 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 
 ## Safety by design
 
-- Prices and totals come only from the database. The eval checks every ₦ amount in a reply
+- Prices and totals come only from the store. The eval checks every ₦ amount in a reply
   against that turn's tool results.
 - The model cannot confirm an order. Only the customer's confirm button can.
 - The agent can read payment status but cannot start or move payments.
@@ -49,6 +49,14 @@ Requires Node 20+ and pnpm 9.
     pnpm install
     cp .env.example .env   # add your Meta, Baseten and Supabase keys
     pnpm ping              # check that both models respond
+
+Run the agent and its checks:
+
+    pnpm --filter @talk2buy/agent dev          # chat API on http://localhost:8787
+    pnpm --filter @talk2buy/tools try-search   # search tools against the sample store
+    pnpm --filter @talk2buy/tools try-cart     # carts, orders and confirm
+    pnpm --filter @talk2buy/agent try-agent    # eval requests through the agent
+    pnpm --filter @talk2buy/agent try-order    # a full chat order, list to confirmed
 
 ## Project plan
 

@@ -54,6 +54,8 @@ export type Order = {
 export type Customer = { userToken: string };
 
 export interface StoreAdapter {
+  // Whether guests (no user token) may place orders. Real stores need the customer to log in.
+  guestCheckout?: boolean;
   searchProducts(q: ProductQuery): Promise<ProductResult[]>;
   getProduct(id: string, area: string): Promise<ProductResult | null>;
   createOrder(items: { productId: string; quantity: number }[], customer: Customer): Promise<Order[]>; // one per shop
