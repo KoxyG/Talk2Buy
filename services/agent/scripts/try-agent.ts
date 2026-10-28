@@ -1,5 +1,5 @@
-// Sends single-item and shopping-list requests from eval/requests.jsonl through the real agent
-// loop and compares the first search_products or build_cart call with the expected arguments.
+// Sends single-item, shopping-list and status requests from eval/requests.jsonl through the real
+// agent loop and compares the first main tool call with the expected tool and arguments.
 // Usage: pnpm --filter @talk2buy/agent try-agent [--model spark|wonder|spark-open] [--only F01,G02]
 
 import { readFileSync } from "node:fs";
@@ -21,9 +21,12 @@ const only = process.argv.includes("--only") ? new Set(arg("only")!.split(",")) 
 // Eval times are Nigerian time (UTC+1) on today's date.
 const at = (hhmm: string) => new Date(`${new Date().toISOString().slice(0, 10)}T${hhmm}:00+01:00`);
 
+// Status questions run with no orders in the chat: only the tool choice is scored.
+const MAIN_TOOLS = ["search_products", "build_cart", "get_payment_status", "get_delivery_eta"];
+
 const cases = readFileSync(new URL("../../../eval/requests.jsonl", import.meta.url), "utf8")
   .trim().split("\n").map((line) => JSON.parse(line) as EvalCase)
-  .filter((c) => (only ? only.has(c.id) : ["search_products", "build_cart"].includes(c.expected.tool!) || c.id === "F18"));
+  .filter((c) => (only ? only.has(c.id) : MAIN_TOOLS.includes(c.expected.tool!) || c.id === "F18"));
 
 // Same filters as expected = pass. Query wording is shown but not scored; the Day 6 eval does that.
 const sameFilters = (expected: Record<string, unknown> = {}, actual: Record<string, unknown> = {}) =>
@@ -48,12 +51,13 @@ for (const c of cases) {
     model,
     now: at(c.context.now),
   });
-  const call = toolCalls.find((t) => t.name === "search_products" || t.name === "build_cart");
+  const call = toolCalls.find((t) => MAIN_TOOLS.includes(t.name));
   const args = call?.args as Record<string, unknown> | undefined;
   const ok = c.expected.tool === null ? !call
     : call?.name !== c.expected.tool ? false
     : call.name === "build_cart" ? sameItems(c.expected.args?.items as Item[], args?.items as Item[])
-    : sameFilters(c.expected.args, args);
+    : call.name === "search_products" ? sameFilters(c.expected.args, args)
+    : true;
   if (ok) passed++;
   console.log(`${ok ? "✓" : "✗"} ${c.id} (${Math.round(performance.now() - started) / 1000}s) ${c.request}`);
   console.log(`   tools:    ${toolCalls.map((t) => `${t.name} ${JSON.stringify(t.args)}`).join(" → ") || "(none)"}`);

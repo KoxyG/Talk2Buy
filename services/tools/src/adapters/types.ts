@@ -60,7 +60,7 @@ export interface StoreAdapter {
   getProduct(id: string, area: string): Promise<ProductResult | null>;
   createOrder(items: { productId: string; quantity: number }[], customer: Customer): Promise<Order[]>; // one per shop
   confirmOrder(orderId: string, customer: Customer): Promise<Order>;
-  getOrderStatus(orderId: string, customer: Customer): Promise<OrderStatus | null>;
+  getOrder(orderId: string, customer: Customer): Promise<Order | null>; // null if not this customer's
   getPaymentStatus(orderId: string, customer: Customer): Promise<PaymentStatus | null>;
   getDeliveryEta(orderId: string, customer: Customer): Promise<number | null>; // minutes from now
 }

@@ -1,5 +1,5 @@
-// Day 4 "Done when": a 4-item shopping list becomes a correct cart and a confirmed test order,
-// through the real agent loop. The last step presses Confirm the way the widget will.
+// A 4-item shopping list becomes a correct cart and a confirmed test order through the real agent
+// loop, pressing Confirm the way the widget does. Then asks about payment and delivery.
 // Usage: pnpm --filter @talk2buy/agent try-order [--model spark|wonder|spark-open]
 
 import { confirmOrder, sql } from "@talk2buy/tools";
@@ -17,7 +17,7 @@ const turns = [
 ];
 
 let orders: Extract<AgentEvent, { type: "orders" }>["orders"] = [];
-for (const message of turns) {
+async function chat(message: string) {
   const events: string[] = [];
   const { reply, toolCalls } = await runAgent({ ...base, message }, (e) => {
     if (e.type === "cart") events.push(`cart ₦${e.cart.total}`);
@@ -29,7 +29,13 @@ for (const message of turns) {
   console.log(`   reply:  ${reply.replace(/\n+/g, " / ")}\n`);
 }
 
-for (const o of orders) console.log(`Confirm button → ${o.order_id}: ${(await confirmOrder(o.order_id, base))?.status ?? "not found"}`);
+for (const message of turns) await chat(message);
+for (const o of orders) console.log(`Confirm button → ${o.order_id}: ${(await confirmOrder(o.order_id, base))?.status ?? "not found"}\n`);
+if (orders.length) {
+  await chat("My money don enter?");
+  await new Promise((r) => setTimeout(r, 16_000)); // the sample store's simulated payment
+  await chat("My money don enter now? When e go reach?");
+}
 console.log(orders.length ? "Order flow complete" : "No orders were created");
 
 await sql`delete from conversations where session_id = ${sessionId}`;

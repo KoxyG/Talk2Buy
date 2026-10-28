@@ -57,6 +57,17 @@ Run the agent and its checks:
     pnpm --filter @talk2buy/tools try-cart     # carts, orders and confirm
     pnpm --filter @talk2buy/agent try-agent    # eval requests through the agent
     pnpm --filter @talk2buy/agent try-order    # a full chat order, list to confirmed
+    pnpm --filter @talk2buy/demo dev           # demo page on http://localhost:3000 (agent must be running)
+
+Add the widget to any site with a script tag (build it with `pnpm --filter @talk2buy/widget build`):
+
+    <script src="talk2buy.js" data-project-id="sample" data-api-url="http://localhost:8787"
+            data-areas="Lagos,Abuja" defer></script>
+
+Or in React:
+
+    import { Talk2BuyWidget } from "@talk2buy/widget/react";
+    <Talk2BuyWidget projectId="sample" apiUrl="http://localhost:8787" areas={["Lagos", "Abuja"]} />
 
 ## Project plan
 

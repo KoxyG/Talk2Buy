@@ -1,10 +1,11 @@
 // POST /chat: takes a customer message and streams back the reply, product cards, cart and
 // orders as server-sent events (session, text, products, cart, orders, done, error).
 // POST /orders/:id/confirm: the widget's Confirm button. The model can never confirm an order.
+// POST /orders/status: the widget's check on payment and delivery after Confirm.
 
 import { serve } from "@hono/node-server";
-import { confirmOrder, sql } from "@talk2buy/tools";
-import { Hono } from "hono";
+import { confirmOrder, getOrderUpdates, sql } from "@talk2buy/tools";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { runAgent } from "./agent";
@@ -90,19 +91,32 @@ app.post("/chat", async (c) => {
   });
 });
 
-app.post("/orders/:id/confirm", async (c) => {
+// Checks shared by the order endpoints: a known project, an allowed site and a session.
+async function orderRequest(c: Context) {
   const body = await c.req.json().catch(() => null) as Body | null;
   const { project_id, session_id } = body ?? {};
   if (typeof project_id !== "string" || typeof session_id !== "string") {
-    return c.json({ error: "project_id and session_id are required" }, 400);
+    return { error: c.json({ error: "project_id and session_id are required" }, 400) };
   }
   const project = (await getProjects()).get(project_id);
-  if (!project) return c.json({ error: "Unknown project" }, 404);
+  if (!project) return { error: c.json({ error: "Unknown project" }, 404) };
   const origin = c.req.header("Origin");
-  if (origin && !allows(project, origin)) return c.json({ error: "This site is not allowed for this project" }, 403);
+  if (origin && !allows(project, origin)) return { error: c.json({ error: "This site is not allowed for this project" }, 403) };
+  return { ctx: { projectId: project.id, sessionId: session_id, userToken: optionalString(body?.user_token) } };
+}
 
+app.post("/orders/status", async (c) => {
+  const req = await orderRequest(c);
+  if (req.error) return req.error;
+  const result = await getOrderUpdates({}, req.ctx);
+  return c.json("error" in result ? { orders: [] } : result);
+});
+
+app.post("/orders/:id/confirm", async (c) => {
+  const req = await orderRequest(c);
+  if (req.error) return req.error;
   try {
-    const order = await confirmOrder(c.req.param("id"), { projectId: project.id, sessionId: session_id, userToken: optionalString(body?.user_token) });
+    const order = await confirmOrder(c.req.param("id"), req.ctx);
     if (!order) return c.json({ error: "Order not found" }, 404);
     return c.json({ order });
   } catch (err) {

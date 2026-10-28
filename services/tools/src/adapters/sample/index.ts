@@ -2,6 +2,7 @@
 // (word matching on name and description), like a typical store API, so typo correction and
 // filtering are exercised by the tools rather than hidden here.
 
+import { randomUUID } from "node:crypto";
 import type { Customer, Order, Product, ProductResult, StoreAdapter } from "../types";
 import { products, shops } from "./data";
 
@@ -23,12 +24,19 @@ function words(text: string): string[] {
 
 type StoredOrder = Order & { userToken: string; confirmedAt?: number; etaMinutes: number };
 const orders = new Map<string, StoredOrder>();
-let nextOrderId = 1;
+
+// The sample store has no payment provider. So the demo can show the whole flow, a confirmed
+// order counts as paid this long after Confirm. No money moves.
+const SIMULATED_PAYMENT_MS = 15_000;
 
 function ownOrder(orderId: string, customer: Customer): StoredOrder | null {
   const order = orders.get(orderId);
-  return order && order.userToken === customer.userToken ? order : null;
+  if (!order || order.userToken !== customer.userToken) return null;
+  if (order.status === "confirmed" && Date.now() - order.confirmedAt! >= SIMULATED_PAYMENT_MS) order.status = "paid";
+  return order;
 }
+
+const publicOrder = ({ userToken, confirmedAt, etaMinutes, ...order }: StoredOrder): Order => order;
 
 export const sampleAdapter: StoreAdapter = {
   guestCheckout: true, // the demo page has no login
@@ -63,7 +71,7 @@ export const sampleAdapter: StoreAdapter = {
       if (!p || !p.inStock) throw new Error(`Product ${productId} is not available`);
       let order = byShop.get(p.shopId);
       if (!order) {
-        order = { id: `ord-${nextOrderId++}`, shopId: p.shopId, items: [], total: 0, status: "pending",
+        order = { id: `ord-${randomUUID().slice(0, 8)}`, shopId: p.shopId, items: [], total: 0, status: "pending",
           userToken: customer.userToken, etaMinutes: withShop(p).etaMinutes };
         byShop.set(p.shopId, order);
       }
@@ -71,7 +79,7 @@ export const sampleAdapter: StoreAdapter = {
       order.total += p.price * quantity;
     }
     for (const order of byShop.values()) orders.set(order.id, order);
-    return [...byShop.values()].map(({ userToken, confirmedAt, etaMinutes, ...order }) => order);
+    return [...byShop.values()].map(publicOrder);
   },
 
   async confirmOrder(orderId, customer) {
@@ -80,15 +88,14 @@ export const sampleAdapter: StoreAdapter = {
     if (order.status !== "pending") throw new Error(`Order ${orderId} is already ${order.status}`);
     order.status = "confirmed";
     order.confirmedAt = Date.now();
-    const { userToken, confirmedAt, etaMinutes, ...rest } = order;
-    return rest;
+    return publicOrder(order);
   },
 
-  async getOrderStatus(orderId, customer) {
-    return ownOrder(orderId, customer)?.status ?? null;
+  async getOrder(orderId, customer) {
+    const order = ownOrder(orderId, customer);
+    return order ? publicOrder(order) : null;
   },
 
-  // The sample store has no payment provider: confirmed orders stay pending until marked paid.
   async getPaymentStatus(orderId, customer) {
     const order = ownOrder(orderId, customer);
     if (!order) return null;

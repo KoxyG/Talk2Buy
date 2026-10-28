@@ -135,3 +135,32 @@ export const createOrderDefinition = {
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 } as const;
+
+const orderIdParameter = {
+  type: "object",
+  properties: { order_id: { type: "string", description: "Only this order; leave out to get all of the customer's recent orders" } },
+  additionalProperties: false,
+} as const;
+
+export const getPaymentStatusDefinition = {
+  type: "function",
+  function: {
+    name: "get_payment_status",
+    description:
+      "Payment status of the customer's orders, per shop. payment 'pending': the shop has not " +
+      "received the money yet (or the order isn't confirmed); 'paid': received; 'failed': it did not " +
+      "go through and the customer can pay again on this site. Read-only: it cannot retry, refund or move money.",
+    parameters: orderIdParameter,
+  },
+} as const;
+
+export const getDeliveryEtaDefinition = {
+  type: "function",
+  function: {
+    name: "get_delivery_eta",
+    description:
+      "Minutes until each of the customer's orders arrives, per shop. eta_minutes is null until the " +
+      "order is confirmed. Orders from different shops arrive separately.",
+    parameters: orderIdParameter,
+  },
+} as const;

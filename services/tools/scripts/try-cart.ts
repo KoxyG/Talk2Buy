@@ -1,10 +1,11 @@
 // Runs every build_cart case in eval/requests.jsonl against the sample store, using the eval's
 // expected arguments as if the model had produced them. Then walks one cart through
-// update_cart, create_order and confirmOrder, the "Done when" check for Day 4.
+// update_cart, create_order, confirmOrder and the payment and delivery checks.
 
 import { readFileSync } from "node:fs";
 import { sql } from "../src/db";
 import { buildCart, confirmOrder, createOrder, updateCart, type BuildCartArgs, type CartView } from "../src/tools/cart";
+import { getOrderUpdates } from "../src/tools/orders";
 import type { ToolContext } from "../src/tools/products";
 
 type EvalCase = {
@@ -61,6 +62,15 @@ const first = result.orders[0]!.order_id;
 console.log(`confirm from another session: ${(await confirmOrder(first, { ...ctx, sessionId: "someone-else" })) ? "ALLOWED (bug)" : "refused"}`);
 for (const o of result.orders) console.log(`confirm ${o.order_id}: ${(await confirmOrder(o.order_id, ctx))?.status}`);
 console.log(`confirm again: ${await confirmOrder(first, ctx).catch((e: Error) => `refused (${e.message})`)}`);
+const updates = async (c: ToolContext) => {
+  const r = await getOrderUpdates({}, c);
+  return "error" in r ? r.error : r.orders.map((o) => `${o.shop}: ${o.status}, payment ${o.payment}, ${o.eta_minutes} mins`).join(" | ");
+};
+console.log(`status now:            ${await updates(ctx)}`);
+console.log(`status, other session: ${await updates({ ...ctx, sessionId: "someone-else" })}`);
+await new Promise((r) => setTimeout(r, 16_000)); // the sample store's simulated payment
+console.log(`status after 16s:      ${await updates(ctx)}`);
+
 const next = await updateCart({ changes: [{ query: "bread", quantity: 1 }] }, ctx);
 console.log(`after ordering, a new cart starts: ${"cart_id" in next && next.cart_id !== updated.cart_id}`);
 

@@ -1,0 +1,27 @@
+{
+  "name": "@talk2buy/widget",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/types/index.d.ts", "default": "./dist/index.mjs" },
+    "./react": { "types": "./dist/types/react.d.ts", "default": "./dist/react.mjs" }
+  },
+  "scripts": {
+    "build": "vite build && vite build --mode script && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "react": "19.3.1",
+    "vite": "7.3.7"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  }
+}

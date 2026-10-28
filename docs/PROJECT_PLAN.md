@@ -79,6 +79,9 @@ session ID and user token. It streams back server-sent events: `session`, `text`
 `POST /orders/:id/confirm` takes a project ID, session ID and optional user token. Only the
 widget's Confirm button calls it, and it only confirms orders created in that session.
 
+`POST /orders/status` takes the same fields and returns that session's recent orders with status,
+payment and arrival time. It is read-only; the widget uses it to show payment after Confirm.
+
 ### Tools
 
 | Tool | Inputs | Returns | Rule |
@@ -90,8 +93,8 @@ widget's Confirm button calls it, and it only confirms orders created in that se
 | `update_cart` | changes (product_id or query, quantity; 0 removes) | Updated cart | Totals recalculated from store prices |
 | `create_order` | none | Pending orders (one per shop), or `cart_changed` if a price or stock changed | Never confirmed by the model |
 | `confirm_order` | order_id | Confirmed order | Not a model tool: `POST /orders/:id/confirm`, called only by the widget's confirm button |
-| `get_payment_status` | order_id | Paid, pending or failed | Read-only, cannot move money |
-| `get_delivery_eta` | order_id | Estimated arrival | Read-only |
+| `get_payment_status` | order_id (optional) | Each of the session's orders by shop: pending, paid or failed | Read-only, cannot move money |
+| `get_delivery_eta` | order_id (optional) | Each order's minutes to arrival, once confirmed | Read-only |
 
 The area, session and user token come from the server, never from the model. Cart tools act on
 the session's one open cart, so the model never handles a cart ID.
@@ -114,7 +117,7 @@ the session's one open cart, so the model never handles a cart ID.
 - Always use `search_products` or `build_cart` before recommending anything; never invent products or prices.
 - For shopping lists, use `build_cart` and clearly say which items were not found.
 - Ask one short question if size, quantity, budget, area or timing is missing and matters.
-- Show at most three options per item.
+- The widget shows product cards and the cart, so replies stay short: point out the best match (at most three options per item) instead of listing everything.
 - Before ordering, summarise the cart and total and ask the customer to confirm.
 - Explain payment and delivery status in plain, friendly language.
 
@@ -303,3 +306,19 @@ the session's one open cart, so the model never handles a cart ID.
   adapter. Checking it with the host belongs in the Choppaddi adapter.
 - **Searches retry:** a search that finds nothing tries looser spelling, then without pack words
   ("spaghetti pack"), then across all categories, and says so in a note.
+
+## Amendments (Oct 28, Day 5)
+
+- **Widget built with Preact** (about 11 KB gzipped for the script tag) inside a shadow root, so
+  host page styles can't change it. The React component mounts the same widget.
+- **Simulated payments on the sample store:** a confirmed order shows as paid about 15 seconds
+  after Confirm, and no money moves. The demo page says so. Real stores report real payment status.
+- **`getOrder` replaces `getOrderStatus`** in the store adapter. It returns the whole order (shop,
+  items, total, status), which status replies need.
+- **`POST /orders/status`:** after Confirm, the widget checks payment every 4 seconds until it is
+  paid or failed (up to 3 minutes), and again when the chat is reopened.
+- **The cart and product cards replace text lists:** the assistant's replies point out the best
+  option and ask the next question.
+- **The widget remembers the chat** (messages, session and city) in the browser, so a page reload
+  keeps the conversation.
+- **Mic button moves to Day 8** with voice input, instead of a placeholder that does nothing.

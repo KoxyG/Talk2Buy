@@ -1,0 +1,23 @@
+{
+  "name": "@talk2buy/demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter @talk2buy/widget build",
+    "dev": "next dev",
+    "prebuild": "pnpm --filter @talk2buy/widget build",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "pnpm --filter @talk2buy/widget build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@talk2buy/widget": "workspace:*",
+    "next": "16.4.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}
