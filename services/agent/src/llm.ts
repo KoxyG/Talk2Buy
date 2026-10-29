@@ -57,7 +57,9 @@ export async function* streamChat(model: ModelConfig, messages: ChatMessage[], t
     stream: true,
     stream_options: { include_usage: true },
   }));
-  if (!res.ok || !res.body) throw new Error(`${model.label}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok || !res.body) {
+    throw new Error(`${model.label} (${JSON.stringify(model.model)}): HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  }
 
   let content = "";
   const calls: ToolCall[] = [];
