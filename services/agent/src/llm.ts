@@ -29,20 +29,34 @@ type Chunk = {
   usage?: Usage | null;
 };
 
+// The Meta API sometimes answers model_not_found (404) for a model it serves, and any API can
+// return 429 or 5xx. Nothing has streamed yet when that happens, so the request is simply retried.
+const RETRY_DELAYS_MS = [300, 600, 1200];
+const isRetryable = (status: number) => status === 404 || status === 429 || status >= 500;
+
+async function post(model: ModelConfig, body: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${model.apiKey}`, "Content-Type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (res.ok || !isRetryable(res.status) || attempt >= RETRY_DELAYS_MS.length) return res;
+    await res.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+  }
+}
+
 export async function* streamChat(model: ModelConfig, messages: ChatMessage[], tools?: readonly object[]): AsyncGenerator<LlmEvent> {
-  const res = await fetch(`${model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${model.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model.model,
-      messages,
-      ...(tools?.length && { tools }),
-      max_tokens: MAX_TOKENS,
-      stream: true,
-      stream_options: { include_usage: true },
-    }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const res = await post(model, JSON.stringify({
+    model: model.model,
+    messages,
+    ...(tools?.length && { tools }),
+    max_tokens: MAX_TOKENS,
+    stream: true,
+    stream_options: { include_usage: true },
+  }));
   if (!res.ok || !res.body) throw new Error(`${model.label}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
 
   let content = "";
