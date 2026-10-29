@@ -3,8 +3,10 @@
 export type ModelId = "spark" | "wonder" | "spark-open";
 export type ModelConfig = { id: ModelId; label: string; baseUrl: string; apiKey: string; model: string };
 
+// Values pasted into a hosting dashboard can keep a trailing space or an inline "# comment" that
+// Node's --env-file would have dropped locally; both make the API answer model_not_found.
 const env = (name: string) => {
-  const value = process.env[name];
+  const value = process.env[name]?.replace(/\s+#.*$/, "").trim();
   if (!value) throw new Error(`${name} is not set in .env`);
   return value;
 };
