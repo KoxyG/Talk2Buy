@@ -6,10 +6,14 @@ import { App } from "./App";
 import type { Language } from "./i18n";
 import { styles } from "./styles";
 
+export type Theme = "light" | "dark";
+
 export type WidgetOptions = {
   projectId: string;
   apiUrl: string;
   themeColor?: string;
+  // Light by default. Change it later with widget.setTheme(), e.g. to follow the host's toggle.
+  theme?: Theme;
   language?: Language;
   // A fixed delivery city (e.g. from the customer's saved address), or a list to choose from.
   area?: string;
@@ -19,7 +23,7 @@ export type WidgetOptions = {
   getUserToken?: () => Promise<string | null> | string | null;
 };
 
-export type Widget = { ask: (text: string) => void; unmount: () => void };
+export type Widget = { ask: (text: string) => void; setTheme: (theme: Theme) => void; unmount: () => void };
 
 export function mount(options: WidgetOptions): Widget {
   const host = document.createElement("div");
@@ -31,6 +35,7 @@ export function mount(options: WidgetOptions): Widget {
   style.textContent = styles;
   shadow.appendChild(style);
   if (options.themeColor) host.style.setProperty("--t2b-accent", options.themeColor);
+  host.dataset.theme = options.theme ?? "light";
 
   const root = document.createElement("div");
   root.className = "root";
@@ -51,6 +56,9 @@ export function mount(options: WidgetOptions): Widget {
 
   return {
     ask: (text) => ask(text),
+    setTheme: (theme) => {
+      host.dataset.theme = theme;
+    },
     unmount: () => {
       render(null, root);
       host.remove();

@@ -74,7 +74,7 @@ Run the agent and its checks:
 Add the widget to any site with a script tag (build it with `pnpm --filter @talk2buy/widget build`):
 
     <script src="talk2buy.js" data-project-id="sample" data-api-url="http://localhost:8787"
-            data-areas="Lagos,Abuja" defer></script>
+            data-areas="Lagos,Abuja" data-theme="dark" defer></script>
 
 Or in React:
 

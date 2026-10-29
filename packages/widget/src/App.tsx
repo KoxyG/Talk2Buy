@@ -172,6 +172,7 @@ export function App(props: AppProps) {
   return (
     <div class="panel" role="dialog" aria-label={props.title ?? t.title}>
       <div class="header">
+        <div class="avatar" aria-hidden="true"><BagIcon /></div>
         <div class="titles">
           <div class="title">{props.title ?? t.title}</div>
           <div class="subtitle">{t.subtitle}</div>
@@ -213,13 +214,13 @@ export function App(props: AppProps) {
               return <Orders entry={entry} t={t} statuses={statuses} busy={confirming} onConfirm={() => confirmAll(entry.orders)} />;
           }
         })}
-        {busy && <div class="typing">…</div>}
+        {busy && <div class="typing" aria-hidden="true"><span /><span /><span /></div>}
       </div>
 
       <form class="composer" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
         <input ref={inputRef} value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
           placeholder={t.placeholder} aria-label={t.placeholder} maxLength={2000} />
-        <button type="submit" disabled={busy || !input.trim()}>{t.send}</button>
+        <button type="submit" disabled={busy || !input.trim()} aria-label={t.send}><SendIcon /></button>
       </form>
     </div>
   );
@@ -298,5 +299,18 @@ const ChatIcon = () => (
 const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
     <path d="M18 6 6 18M6 6l12 12" />
+  </svg>
+);
+
+const BagIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+    <path d="M3 6h18M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+
+const SendIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 19V5M5 12l7-7 7 7" />
   </svg>
 );
