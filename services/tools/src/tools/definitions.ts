@@ -17,7 +17,7 @@ export const searchProductsDefinition = {
         query: { type: "string", description: "What the customer wants, e.g. 'jollof rice' or '5kg rice'" },
         category: {
           type: "string",
-          enum: ["food", "grocery", "essentials"],
+          enum: ["food", "grocery"],
           description: "Always set: 'food' for cooked, ready-to-eat meals and snacks; 'grocery' for raw ingredients and packaged staples (rice, beans, bread, garri, oil, milk) and household items",
         },
         max_price: { type: "number", description: "Highest price in naira" },

@@ -195,7 +195,7 @@ the session's one open cart, so the model never handles a cart ID.
 ### Day 8, Mon Nov 2: Fix and stretch
 
 - Fix the top failures from Day 7 and re-run the evaluation.
-- If time allows, add one stretch item: daily essentials data, voice input (Muse Voice Transcribe), or product-photo search (only if a Meta model that reads images is available).
+- If time allows, add one stretch item: voice input (Muse Voice Transcribe) first, then daily essentials data.
 - **Done when:** the evaluation score is equal to or better than Day 6.
 
 ### Day 9, Tue Nov 3: Ship and record
@@ -322,3 +322,30 @@ the session's one open cart, so the model never handles a cart ID.
 - **The widget remembers the chat** (messages, session and city) in the browser, so a page reload
   keeps the conversation.
 - **Mic button moves to Day 8** with voice input, instead of a placeholder that does nothing.
+- **No product images:** Muse Image work (photo cleanup, illustrations, product-photo search) is
+  dropped so time goes to text and voice. Product cards stay text only.
+
+## Amendments (Oct 29, Day 6)
+
+- **Eval runner (`pnpm eval`):** runs the 50 requests through the real agent loop on each model
+  and scores tool, filters, query wording, cart items, no-tool behaviour and invented ₦ amounts
+  with plain rules (no AI judge). Rows go to `eval_runs`; a table goes to `eval/results/`.
+- **Results (run 2 of 2, Oct 29):**
+
+  | Model | Correct | Median | p90 |
+  |---|---|---|---|
+  | Muse Spark 1.3 | 100% (50/50) | 4.8s | 7.3s |
+  | Muse Wonder | 100% (50/50) | 8.0s | 12.8s |
+  | Muse Spark Open | 100% (50/50) | 4.7s | 6.9s |
+
+  Run 1 was 98%, 98% and 100%. All three now pass the whole set, so Day 7's real users are the
+  harder test. "Rice under ₦3,000" is ambiguous (cooked or raw) and may vary between runs.
+- **Default model: Muse Spark 1.3.** Tied on accuracy, as fast as Spark Open, and on Meta's API
+  where the main credits are. Muse Spark Open is the fallback and runs any further evals, to save
+  Meta credits; it is not the default because its $100 Baseten credit could run out mid-demo.
+  Muse Wonder stays as the comparison model.
+- **Fix found by the eval:** when a search found nothing under the model's category, the retry
+  across all categories reused that category, so a customer could be told an in-stock item was
+  missing.
+- **`essentials` removed from `search_products`:** no store uses it yet and the model chose it for
+  detergent. The adapter type keeps it for future stores.

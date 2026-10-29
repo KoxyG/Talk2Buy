@@ -30,7 +30,6 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
 | Comparison (open weights) | Muse Spark Open | Baseten |
 | Voice input (planned) | Muse Voice Transcribe | Meta Model API |
-| Product photo cleanup and placeholders | Muse Image 1.0 | Meta Model API |
 
 ## Safety by design
 
@@ -41,6 +40,19 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 - Phone numbers and addresses never reach the model.
 - Unknown Pidgin or slang is looked up in a glossary, then the web, and the lookup returns a
   meaning only, never products or prices.
+
+## Evaluation
+
+50 requests (half in Pidgin: food, groceries, shopping lists, payment and delivery questions),
+scored on tool choice, filters, cart contents, safety behaviour and invented prices.
+
+| Model | Correct | Median reply |
+|---|---|---|
+| Muse Spark 1.3 (default) | 100% | 4.8s |
+| Muse Wonder | 100% | 8.0s |
+| Muse Spark Open | 100% | 4.7s |
+
+Run it with `pnpm eval` (options: `--models spark,wonder`, `--only F01,G13`).
 
 ## Getting started
 

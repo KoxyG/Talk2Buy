@@ -1,0 +1,13 @@
+{
+  "name": "@talk2buy/eval",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "tsx --env-file=../.env src/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@talk2buy/agent": "workspace:*",
+    "@talk2buy/tools": "workspace:*"
+  }
+}

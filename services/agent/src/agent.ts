@@ -32,7 +32,8 @@ export type AgentInput = {
   model?: ModelId;
   now?: Date;
 };
-export type AgentResult = { reply: string; toolCalls: { name: string; args: unknown }[] };
+export type AgentUsage = { promptTokens: number; cachedTokens: number; completionTokens: number; reasoningTokens: number };
+export type AgentResult = { reply: string; toolCalls: { name: string; args: unknown; result: unknown }[]; usage: AgentUsage };
 
 export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void = () => {}): Promise<AgentResult> {
   const model = getModel(input.model ?? DEFAULT_MODEL);
@@ -50,6 +51,7 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
   const added: ChatMessage[] = [{ role: "user", content: input.message }];
   const toolCalls: AgentResult["toolCalls"] = [];
   let reply = "";
+  const total: AgentUsage = { promptTokens: 0, cachedTokens: 0, completionTokens: 0, reasoningTokens: 0 };
 
   for (let step = 1; step <= MAX_STEPS; step++) {
     // On the last step, tools are withheld so the model has to answer.
@@ -71,6 +73,10 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
     const { message, finishReason, usage } = done!;
     log({ event: "model_call", session: input.sessionId, model: model.id, step, latency_ms: Math.round(performance.now() - started),
       finish_reason: finishReason, tool_calls: message.tool_calls?.map((c) => c.function.name) ?? [], usage });
+    total.promptTokens += usage?.prompt_tokens ?? 0;
+    total.cachedTokens += usage?.prompt_tokens_details?.cached_tokens ?? 0;
+    total.completionTokens += usage?.completion_tokens ?? 0;
+    total.reasoningTokens += usage?.completion_tokens_details?.reasoning_tokens ?? 0;
 
     added.push(message);
     if (message.content) reply += (reply ? "\n" : "") + message.content;
@@ -78,10 +84,10 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
 
     for (const call of message.tool_calls) {
       const args = parseArgs(call.function.arguments);
-      toolCalls.push({ name: call.function.name, args });
       const result = args === null
         ? { error: "Arguments were not valid JSON" }
         : await runTool(call.function.name, args, ctx).catch((err: Error) => ({ error: err.message }));
+      toolCalls.push({ name: call.function.name, args, result });
       const event = toEvent(call.function.name, result);
       if (event) emit(event);
       added.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
@@ -89,7 +95,7 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
   }
 
   await saveHistory(input.sessionId, input.projectId, added);
-  return { reply, toolCalls };
+  return { reply, toolCalls, usage: total };
 }
 
 // What the widget shows for a tool result: product cards, the cart, or orders to confirm.

@@ -41,8 +41,11 @@ export type FoundProducts = { query: string; corrections: Correction[]; results:
 export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<FoundProducts> {
   const adapter = getAdapter(ctx.projectId);
   const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes, now: ctx.now ?? new Date() };
-  const find = async (query: string, category = args.category) =>
-    applyFilters(await adapter.searchProducts({ query, area: ctx.area, category, maxPrice: args.max_price, limit: CANDIDATES }), { ...filters, category });
+  // anyCategory ignores the model's category; passing undefined would fall back to it.
+  const find = async (query: string, anyCategory = false) => {
+    const category = anyCategory ? undefined : args.category;
+    return applyFilters(await adapter.searchProducts({ query, area: ctx.area, category, maxPrice: args.max_price, limit: CANDIDATES }), { ...filters, category });
+  };
 
   let { query, corrections } = await correctSpelling(args.query, STRICT);
   let found = await find(query);
@@ -66,7 +69,7 @@ export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): 
 
   // A wrong category must not hide products: retry once across all categories.
   if (!found.length && args.category) {
-    found = await find(query, undefined);
+    found = await find(query, true);
     if (found.length) note = `Nothing under ${args.category}; these are from other categories.`;
   }
 
