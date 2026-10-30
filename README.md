@@ -11,7 +11,9 @@ your payment.
 
 Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track) by Koxy Builds.
 
-> 🚧 Work in progress. The demo link, demo video and evaluation results will be added before submission.
+**Live demo:** [talk2buy.vercel.app](https://talk2buy.vercel.app)
+
+> 🚧 The demo video will be added before submission.
 
 ## How it works
 
@@ -30,6 +32,11 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
 | Comparison (open weights) | Muse Spark Open | Baseten |
 | Voice input (planned) | Muse Voice Transcribe | Meta Model API |
+
+The live demo currently runs on **Muse Spark Open** (`AGENT_MODEL=spark-open`). The Meta Model API
+returns `model_not_found` for requests from our host (Render), although the same key works from a
+home connection; we have reported this to Meta. All three models score 100% on the eval and use the
+same OpenAI-compatible API, so switching back is one environment variable.
 
 ## Safety by design
 
@@ -80,6 +87,31 @@ Or in React:
 
     import { Talk2BuyWidget } from "@talk2buy/widget/react";
     <Talk2BuyWidget projectId="sample" apiUrl="http://localhost:8787" areas={["Lagos", "Abuja"]} />
+
+Options: `themeColor` (`data-theme-color`), `theme` (`data-theme`: `light` or `dark`, default light),
+`language` (`data-language`: `en` or `pcm`), and a fixed `area` or a list of `areas` to choose from.
+The widget runs in a shadow root, so it doesn't clash with the host site's styles.
+
+## Deployment
+
+**Agent API (Render, Node):**
+
+- Root directory: repo root (the agent uses the `@talk2buy/tools` workspace package)
+- Build: `corepack pnpm install --frozen-lockfile`
+- Start: `corepack pnpm --filter @talk2buy/agent exec tsx src/server.ts`
+- Environment: the keys from `.env.example`, plus `AGENT_PORT=10000`, `NODE_VERSION=22`,
+  `COREPACK_ENABLE_DOWNLOAD_PROMPT=0` and, for now, `AGENT_MODEL=spark-open`
+- Region: Frankfurt, close to the Supabase database (London)
+
+**Demo page (Vercel):**
+
+- Root directory: `apps/demo`
+- Environment: `NEXT_PUBLIC_AGENT_URL` set to the agent's URL (public; it is only an address)
+
+**Allowed sites:** the agent only accepts browser requests from domains in the project's
+`allowed_domains`. Add each site that embeds the widget:
+
+    update projects set allowed_domains = array_append(allowed_domains, 'your-site.com') where id = 'sample';
 
 ## Project plan
 
