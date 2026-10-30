@@ -1,5 +1,5 @@
 // Talks to the agent API: POST /chat (server-sent events), POST /orders/:id/confirm,
-// POST /orders/status and POST /feedback. Shapes match services/tools; prices always come from the server.
+// POST /orders/status, POST /feedback and POST /transcribe. Shapes match services/tools; prices always come from the server.
 
 export type ProductCard = { id: string; name: string; shop: string; price: number; unit: string | null; size: number | null; eta_minutes: number };
 
@@ -49,7 +49,7 @@ async function post(client: Client, path: string, body: Record<string, unknown>,
 // Streams one customer message. Events arrive in order; "done" ends the stream.
 export async function sendMessage(
   client: Client,
-  body: { session_id?: string; message: string; area: string },
+  body: { session_id?: string; message: string; area: string; voice?: boolean },
   onEvent: (e: ChatEvent) => void,
   signal?: AbortSignal,
 ) {
@@ -100,4 +100,10 @@ export async function sendFeedback(
 ): Promise<void> {
   const res = await post(client, "/feedback", { session_id: sessionId, ...body });
   if (!res.ok) throw new Error(`Feedback failed (${res.status})`);
+}
+
+export async function transcribe(client: Client, audio: string): Promise<string> {
+  const res = await post(client, "/transcribe", { audio });
+  if (!res.ok) throw new Error(`Transcription failed (${res.status})`);
+  return ((await res.json()) as { text: string }).text;
 }

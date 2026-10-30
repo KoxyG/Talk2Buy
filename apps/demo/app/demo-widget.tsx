@@ -50,6 +50,7 @@ export function DemoWidget() {
         themeColor={THEME_COLOR}
         theme={theme}
         feedback
+        voice
         onReady={(w) => (ask.current = w.ask)}
       />
     </>

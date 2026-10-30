@@ -12,7 +12,7 @@ import {
 } from "@talk2buy/tools";
 import { streamChat, type ChatMessage, type LlmEvent } from "./llm";
 import { DEFAULT_MODEL, getModel, type ModelId } from "./models";
-import { systemPrompt } from "./prompt";
+import { systemPrompt, VOICE_NOTE } from "./prompt";
 
 const MAX_STEPS = 5;
 const HISTORY_TURNS = 10; // customer messages kept as context
@@ -28,6 +28,8 @@ export type AgentInput = {
   projectId: string;
   area: string;
   message: string;
+  // The message was spoken and transcribed, so the reply checks what was heard.
+  voice?: boolean;
   userToken?: string;
   model?: ModelId;
   now?: Date;
@@ -49,6 +51,8 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
 
   const history = await loadHistory(input.sessionId);
   const added: ChatMessage[] = [{ role: "user", content: input.message }];
+  // What the model sees for this turn; history keeps the message without the note.
+  const asked: ChatMessage = input.voice ? { role: "user", content: `${input.message}\n\n${VOICE_NOTE}` } : added[0]!;
   const toolCalls: AgentResult["toolCalls"] = [];
   let reply = "";
   const total: AgentUsage = { promptTokens: 0, cachedTokens: 0, completionTokens: 0, reasoningTokens: 0 };
@@ -56,7 +60,9 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
   for (let step = 1; step <= MAX_STEPS; step++) {
     // On the last step, tools are withheld so the model has to answer.
     const tools = step < MAX_STEPS ? toolDefinitions : undefined;
-    const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(input.area, now) }, ...history, ...added];
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt(input.area, now, input.voice) }, ...history, asked, ...added.slice(1),
+    ];
 
     const started = performance.now();
     let done: Extract<LlmEvent, { type: "done" }> | undefined;

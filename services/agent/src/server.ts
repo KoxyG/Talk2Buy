@@ -3,6 +3,7 @@
 // POST /orders/:id/confirm: the widget's Confirm button. The model can never confirm an order.
 // POST /orders/status: the widget's check on payment and delivery after Confirm.
 // POST /feedback: thumbs up/down (and an optional comment) on one assistant reply.
+// POST /transcribe: a short voice clip in, the customer's words out (for the input box).
 
 import { serve } from "@hono/node-server";
 import { confirmOrder, getOrderUpdates, sql } from "@talk2buy/tools";
@@ -11,6 +12,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { runAgent } from "./agent";
 import { DEFAULT_MODEL } from "./models";
+import { transcribe } from "./transcribe";
 
 const PORT = Number(process.env.AGENT_PORT ?? 8787);
 const MAX_MESSAGE_LENGTH = 2000;
@@ -51,10 +53,11 @@ const corsForProjects = cors({
 app.use("/chat", corsForProjects);
 app.use("/orders/*", corsForProjects);
 app.use("/feedback", corsForProjects);
+app.use("/transcribe", corsForProjects);
 
 type Body = {
   project_id?: unknown; session_id?: unknown; message?: unknown; area?: unknown; user_token?: unknown;
-  rating?: unknown; comment?: unknown; reply?: unknown; question?: unknown;
+  rating?: unknown; comment?: unknown; reply?: unknown; question?: unknown; audio?: unknown; voice?: unknown;
 };
 const optionalString = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
@@ -84,7 +87,8 @@ app.post("/chat", async (c) => {
     try {
       // Events are written in order; the agent doesn't wait for each write.
       let writes = Promise.resolve();
-      const input = { sessionId: sessionId!, projectId: project.id, area: area.trim(), message: message.trim(), userToken: optionalString(body?.user_token) };
+      const input = { sessionId: sessionId!, projectId: project.id, area: area.trim(), message: message.trim(),
+        userToken: optionalString(body?.user_token), voice: body?.voice === true };
       await runAgent(input, (e) => {
         writes = writes.then(() => stream.writeSSE({ event: e.type, data: JSON.stringify(e) }));
       });
@@ -148,6 +152,33 @@ app.post("/feedback", async (c) => {
     insert into feedback (session_id, project_id, rating, comment, reply, question, model)
     values (${req.ctx.sessionId}, ${req.ctx.projectId}, ${rating}, ${clip(comment, 1000)}, ${replyText}, ${clip(question, 2000)}, ${DEFAULT_MODEL})`;
   return c.json({ ok: true });
+});
+
+// 30 seconds of 16 kHz mono 16-bit WAV is about 960 KB, 1.3 MB as base64.
+const MAX_AUDIO_CHARS = 1_400_000;
+
+app.post("/transcribe", async (c) => {
+  const { project_id, audio } = ((await c.req.json().catch(() => null)) as Body | null) ?? {};
+  if (typeof project_id !== "string" || typeof audio !== "string" || !audio) {
+    return c.json({ error: "project_id and audio are required" }, 400);
+  }
+  if (audio.length > MAX_AUDIO_CHARS) return c.json({ error: "Recording is too long" }, 413);
+  const project = (await getProjects()).get(project_id);
+  if (!project) return c.json({ error: "Unknown project" }, 404);
+  const origin = c.req.header("Origin");
+  if (origin && !allows(project, origin)) return c.json({ error: "This site is not allowed for this project" }, 403);
+
+  const started = performance.now();
+  try {
+    const text = await transcribe(audio);
+    // Not the transcript itself: customers may say phone numbers or addresses.
+    console.log(JSON.stringify({ ts: new Date().toISOString(), event: "transcribe", project: project.id,
+      latency_ms: Math.round(performance.now() - started), chars: text.length }));
+    return c.json({ text });
+  } catch (err) {
+    console.error(err);
+    return c.json({ error: "Transcription failed" }, 502);
+  }
 });
 
 app.get("/health", (c) => c.json({ ok: true }));

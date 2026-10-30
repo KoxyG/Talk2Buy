@@ -115,6 +115,8 @@ button { cursor: pointer; }
 .typing span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes t2b-dot { 0%, 60%, 100% { opacity: 0.3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
 
+.voice-mark { display: inline-grid; vertical-align: -2px; margin-right: 6px; opacity: 0.8; }
+.voice-mark svg { width: 14px; height: 14px; }
 .reply { align-self: flex-start; max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
 .reply .bubble { max-width: 100%; }
 .feedback { display: flex; gap: 2px; }
@@ -194,9 +196,17 @@ button:disabled { opacity: 0.55; cursor: default; }
   border: 0; border-radius: 50%; background: var(--t2b-accent); color: var(--t2b-on-accent);
 }
 .composer button svg { width: 18px; height: 18px; }
+/* The mic stays quiet next to Send, and turns red and pulses while it listens. */
+.composer .mic { background: transparent; color: var(--t2b-muted); }
+.composer .mic:hover:not(:disabled) { color: var(--t2b-text); background: var(--t2b-bg); }
+.composer .mic.listening { background: var(--t2b-danger); color: #fff; animation: t2b-pulse 1.4s infinite; }
+@keyframes t2b-pulse {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--t2b-danger) 45%, transparent); }
+  to { box-shadow: 0 0 0 10px transparent; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .panel, .typing span { animation: none; }
+  .panel, .typing span, .composer .mic.listening { animation: none; }
   .launcher { transition: none; }
 }
 `;

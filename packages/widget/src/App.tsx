@@ -2,11 +2,12 @@
 // status. Everything shown about products and money comes from server events.
 
 import { useEffect, useRef, useState } from "preact/hooks";
-import { confirmOrder, orderStatus, sendFeedback, sendMessage, type CartView, type ChatEvent, type Client, type OrderSummary, type OrderUpdate, type ProductCard, type Rating } from "./api";
+import { confirmOrder, orderStatus, sendFeedback, sendMessage, transcribe, type CartView, type ChatEvent, type Client, type OrderSummary, type OrderUpdate, type ProductCard, type Rating } from "./api";
 import { getStrings, naira, type Language, type Strings } from "./i18n";
+import { canRecord, record, type Recording } from "./recorder";
 
 export type Entry =
-  | { kind: "user"; text: string }
+  | { kind: "user"; text: string; voice?: boolean }
   | { kind: "assistant"; text: string; rating?: Rating }
   | { kind: "error"; text: string }
   | { kind: "products"; products: ProductCard[]; note?: string }
@@ -20,6 +21,8 @@ export type AppProps = Client & {
   title?: string;
   // Thumbs up/down under each reply, e.g. while testing with real customers.
   feedback?: boolean;
+  // Mic button that turns speech into text in the input box.
+  voice?: boolean;
   // Asks from outside the widget, e.g. example buttons on the host page.
   onAsk?: (ask: (text: string) => void) => () => void;
 };
@@ -58,6 +61,8 @@ export function App(props: AppProps) {
   const [busy, setBusy] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, OrderUpdate>>({});
   const [confirming, setConfirming] = useState(false);
+  const [voice, setVoice] = useState<"idle" | "listening" | "transcribing">("idle");
+  const recording = useRef<Recording | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -70,8 +75,11 @@ export function App(props: AppProps) {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+  useEffect(() => {
+    if (!open) recording.current?.stop();
+  }, [open]);
 
-  async function ask(text: string) {
+  async function ask(text: string, voice = false) {
     const message = text.trim();
     if (!message || busy) return;
     setOpen(true);
@@ -86,7 +94,7 @@ export function App(props: AppProps) {
     }
     setInput("");
     setBusy(true);
-    setEntries((e) => [...e, { kind: "user", text: message }]);
+    setEntries((e) => [...e, { kind: "user", text: message, voice }]);
 
     // Text that follows a card starts a new bubble; text right after text joins it.
     const onEvent = (event: ChatEvent) => {
@@ -110,7 +118,7 @@ export function App(props: AppProps) {
     };
 
     try {
-      await sendMessage(props, { session_id: sessionId, message, area }, onEvent);
+      await sendMessage(props, { session_id: sessionId, message, area, voice }, onEvent);
     } catch {
       setEntries((e) => [...e, { kind: "error", text: t.error }]);
     } finally {
@@ -163,6 +171,33 @@ export function App(props: AppProps) {
     sendFeedback(props, sessionId, { rating, reply: entry.text, question: question?.text, comment: comment?.trim() || undefined }).catch(() => {});
   }
 
+  // Mic button: records, transcribes and sends; the agent's reply checks what it heard.
+  async function toggleVoice() {
+    if (recording.current) return recording.current.stop();
+    try {
+      recording.current = await record();
+    } catch (err) {
+      console.warn("Talk2Buy voice:", err);
+      setEntries((e) => [...e, { kind: "error", text: t.micDenied }]);
+      return;
+    }
+    setVoice("listening");
+    try {
+      const audio = await recording.current.result;
+      if (!audio) return;
+      setVoice("transcribing");
+      const text = await transcribe(props, audio);
+      // Sent straight away; the reply starts by checking what was heard.
+      if (text) void ask(input.trim() ? `${input.trim()} ${text}` : text, true);
+    } catch (err) {
+      console.warn("Talk2Buy voice:", err);
+      setEntries((e) => [...e, { kind: "error", text: t.voiceError }]);
+    } finally {
+      recording.current = null;
+      setVoice("idle");
+    }
+  }
+
   // Order cards from an earlier visit show their current status.
   useEffect(() => {
     if (open && entries.some((e) => e.kind === "orders")) void refreshStatus();
@@ -213,8 +248,14 @@ export function App(props: AppProps) {
         {entries.map((entry, i) => {
           switch (entry.kind) {
             case "user":
+              return (
+                <div class="bubble user">
+                  {entry.voice && <span class="voice-mark" title={t.spoken} aria-label={t.spoken}><MicIcon /></span>}
+                  {entry.text}
+                </div>
+              );
             case "error":
-              return <div class={`bubble ${entry.kind}`}>{entry.text}</div>;
+              return <div class="bubble error">{entry.text}</div>;
             case "assistant":
               return (
                 <div class="reply">
@@ -238,8 +279,15 @@ export function App(props: AppProps) {
 
       <form class="composer" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
         <input ref={inputRef} value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
-          placeholder={t.placeholder} aria-label={t.placeholder} maxLength={2000} />
-        <button type="submit" disabled={busy || !input.trim()} aria-label={t.send}><SendIcon /></button>
+          placeholder={voice === "listening" ? t.listening : voice === "transcribing" ? t.transcribing : t.placeholder}
+          aria-label={t.placeholder} maxLength={2000} readOnly={voice !== "idle"} />
+        {props.voice && canRecord() && (
+          <button type="button" class={`mic ${voice}`} onClick={toggleVoice} disabled={busy || voice === "transcribing"}
+            aria-label={voice === "listening" ? t.voiceStop : t.voiceStart} aria-pressed={voice === "listening"}>
+            {voice === "listening" ? <StopIcon /> : <MicIcon />}
+          </button>
+        )}
+        <button type="submit" disabled={busy || voice !== "idle" || !input.trim()} aria-label={t.send}><SendIcon /></button>
       </form>
     </div>
   );
@@ -358,6 +406,19 @@ const BagIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
     <path d="M3 6h18M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+
+const MicIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="9" y="2" width="6" height="12" rx="3" />
+    <path d="M5 10a7 7 0 0 0 14 0M12 17v5" />
+  </svg>
+);
+
+const StopIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <rect x="6" y="6" width="12" height="12" rx="2" />
   </svg>
 );
 

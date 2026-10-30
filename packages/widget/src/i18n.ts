@@ -34,6 +34,13 @@ const strings = {
     feedbackPrompt: "What went wrong? (optional)",
     feedbackSend: "Send",
     feedbackThanks: "Thanks for the feedback",
+    voiceStart: "Speak your order",
+    voiceStop: "Stop recording",
+    listening: "Listening… tap ■ when you're done",
+    transcribing: "Writing down what you said…",
+    micDenied: "Allow microphone access to talk, or type your order instead.",
+    voiceError: "Sorry, I couldn't catch that. Please try again or type it.",
+    spoken: "Spoken message",
   },
   pcm: {
     open: "Chat to order",
@@ -65,6 +72,13 @@ const strings = {
     feedbackPrompt: "Wetin no correct? (you fit skip am)",
     feedbackSend: "Send",
     feedbackThanks: "Thank you for the feedback",
+    voiceStart: "Talk wetin you want",
+    voiceStop: "Stop recording",
+    listening: "I dey listen… press ■ when you finish",
+    transcribing: "I dey write wetin you talk…",
+    micDenied: "Allow microphone make you fit talk, or type am.",
+    voiceError: "I no hear am well. Abeg try again or type am.",
+    spoken: "Na voice you take send am",
   },
 };
 

@@ -21,6 +21,8 @@ export type WidgetOptions = {
   title?: string;
   // Shows thumbs up/down under each reply. Off by default.
   feedback?: boolean;
+  // Shows a mic button that turns speech into text in the input box. Off by default.
+  voice?: boolean;
   // For logged-in customers: a short-lived token from the host's backend, sent with each request.
   getUserToken?: () => Promise<string | null> | string | null;
 };
