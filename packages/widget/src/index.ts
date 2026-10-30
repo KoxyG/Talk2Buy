@@ -19,6 +19,8 @@ export type WidgetOptions = {
   area?: string;
   areas?: string[];
   title?: string;
+  // Shows thumbs up/down under each reply. Off by default.
+  feedback?: boolean;
   // For logged-in customers: a short-lived token from the host's backend, sent with each request.
   getUserToken?: () => Promise<string | null> | string | null;
 };

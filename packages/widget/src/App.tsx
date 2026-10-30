@@ -2,12 +2,12 @@
 // status. Everything shown about products and money comes from server events.
 
 import { useEffect, useRef, useState } from "preact/hooks";
-import { confirmOrder, orderStatus, sendMessage, type CartView, type ChatEvent, type Client, type OrderSummary, type OrderUpdate, type ProductCard } from "./api";
+import { confirmOrder, orderStatus, sendFeedback, sendMessage, type CartView, type ChatEvent, type Client, type OrderSummary, type OrderUpdate, type ProductCard, type Rating } from "./api";
 import { getStrings, naira, type Language, type Strings } from "./i18n";
 
 export type Entry =
   | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string }
+  | { kind: "assistant"; text: string; rating?: Rating }
   | { kind: "error"; text: string }
   | { kind: "products"; products: ProductCard[]; note?: string }
   | { kind: "cart"; cart: CartView }
@@ -18,6 +18,8 @@ export type AppProps = Client & {
   area?: string;
   areas?: string[];
   title?: string;
+  // Thumbs up/down under each reply, e.g. while testing with real customers.
+  feedback?: boolean;
   // Asks from outside the widget, e.g. example buttons on the host page.
   onAsk?: (ask: (text: string) => void) => () => void;
 };
@@ -152,6 +154,15 @@ export function App(props: AppProps) {
     await poll();
   }
 
+  // Marked as rated straight away; a failed send isn't worth interrupting the chat for.
+  function rate(index: number, rating: Rating, comment?: string) {
+    const entry = entries[index];
+    if (entry?.kind !== "assistant" || !sessionId) return;
+    const question = entries.slice(0, index).findLast((e): e is Extract<Entry, { kind: "user" }> => e.kind === "user");
+    setEntries((list) => list.map((e, i) => (i === index && e.kind === "assistant" ? { ...e, rating } : e)));
+    sendFeedback(props, sessionId, { rating, reply: entry.text, question: question?.text, comment: comment?.trim() || undefined }).catch(() => {});
+  }
+
   // Order cards from an earlier visit show their current status.
   useEffect(() => {
     if (open && entries.some((e) => e.kind === "orders")) void refreshStatus();
@@ -202,9 +213,17 @@ export function App(props: AppProps) {
         {entries.map((entry, i) => {
           switch (entry.kind) {
             case "user":
-            case "assistant":
             case "error":
               return <div class={`bubble ${entry.kind}`}>{entry.text}</div>;
+            case "assistant":
+              return (
+                <div class="reply">
+                  <div class="bubble assistant">{entry.text}</div>
+                  {props.feedback && sessionId && !(busy && i === entries.length - 1) && (
+                    <Feedback rating={entry.rating} t={t} onRate={(rating, comment) => rate(i, rating, comment)} />
+                  )}
+                </div>
+              );
             case "products":
               return <Products entry={entry} t={t} disabled={busy} onAdd={(p) => ask(t.added(p.name, p.shop))} />;
             case "cart":
@@ -289,6 +308,39 @@ function Orders({ entry, t, statuses, busy, onConfirm }: {
     </div>
   );
 }
+
+function Feedback({ rating, t, onRate }: { rating?: Rating; t: Strings; onRate: (rating: Rating, comment?: string) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [comment, setComment] = useState("");
+  if (rating) return <div class="feedback-done">{t.feedbackThanks}</div>;
+  if (asking) {
+    return (
+      <form class="feedback-form" onSubmit={(e) => { e.preventDefault(); onRate("down", comment); }}>
+        <input value={comment} onInput={(e) => setComment((e.target as HTMLInputElement).value)}
+          placeholder={t.feedbackPrompt} aria-label={t.feedbackPrompt} maxLength={1000} />
+        <button class="secondary small" type="submit">{t.feedbackSend}</button>
+      </form>
+    );
+  }
+  return (
+    <div class="feedback">
+      <button class="rate" type="button" onClick={() => onRate("up")} aria-label={t.feedbackGood} title={t.feedbackGood}><ThumbUpIcon /></button>
+      <button class="rate" type="button" onClick={() => setAsking(true)} aria-label={t.feedbackBad} title={t.feedbackBad}><ThumbDownIcon /></button>
+    </div>
+  );
+}
+
+const ThumbUpIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+  </svg>
+);
+
+const ThumbDownIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M17 14V2M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+  </svg>
+);
 
 const ChatIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

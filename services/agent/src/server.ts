@@ -2,6 +2,7 @@
 // orders as server-sent events (session, text, products, cart, orders, done, error).
 // POST /orders/:id/confirm: the widget's Confirm button. The model can never confirm an order.
 // POST /orders/status: the widget's check on payment and delivery after Confirm.
+// POST /feedback: thumbs up/down (and an optional comment) on one assistant reply.
 
 import { serve } from "@hono/node-server";
 import { confirmOrder, getOrderUpdates, sql } from "@talk2buy/tools";
@@ -9,6 +10,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { runAgent } from "./agent";
+import { DEFAULT_MODEL } from "./models";
 
 const PORT = Number(process.env.AGENT_PORT ?? 8787);
 const MAX_MESSAGE_LENGTH = 2000;
@@ -48,8 +50,12 @@ const corsForProjects = cors({
 });
 app.use("/chat", corsForProjects);
 app.use("/orders/*", corsForProjects);
+app.use("/feedback", corsForProjects);
 
-type Body = { project_id?: unknown; session_id?: unknown; message?: unknown; area?: unknown; user_token?: unknown };
+type Body = {
+  project_id?: unknown; session_id?: unknown; message?: unknown; area?: unknown; user_token?: unknown;
+  rating?: unknown; comment?: unknown; reply?: unknown; question?: unknown;
+};
 const optionalString = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
 app.post("/chat", async (c) => {
@@ -91,8 +97,8 @@ app.post("/chat", async (c) => {
   });
 });
 
-// Checks shared by the order endpoints: a known project, an allowed site and a session.
-async function orderRequest(c: Context) {
+// Checks shared by the session endpoints: a known project, an allowed site and a session.
+async function sessionRequest(c: Context) {
   const body = await c.req.json().catch(() => null) as Body | null;
   const { project_id, session_id } = body ?? {};
   if (typeof project_id !== "string" || typeof session_id !== "string") {
@@ -106,14 +112,14 @@ async function orderRequest(c: Context) {
 }
 
 app.post("/orders/status", async (c) => {
-  const req = await orderRequest(c);
+  const req = await sessionRequest(c);
   if (req.error) return req.error;
   const result = await getOrderUpdates({}, req.ctx);
   return c.json("error" in result ? { orders: [] } : result);
 });
 
 app.post("/orders/:id/confirm", async (c) => {
-  const req = await orderRequest(c);
+  const req = await sessionRequest(c);
   if (req.error) return req.error;
   try {
     const order = await confirmOrder(c.req.param("id"), req.ctx);
@@ -123,6 +129,25 @@ app.post("/orders/:id/confirm", async (c) => {
     // The store refused, e.g. the order was already confirmed.
     return c.json({ error: (err as Error).message }, 409);
   }
+});
+
+// Trimmed and capped; empty becomes null.
+const clip = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+
+app.post("/feedback", async (c) => {
+  const req = await sessionRequest(c);
+  if (req.error) return req.error;
+  const { rating, comment, reply, question } = (await c.req.json()) as Body;
+  const replyText = clip(reply, 4000);
+  if ((rating !== "up" && rating !== "down") || !replyText) return c.json({ error: "rating and reply are required" }, 400);
+
+  const [row] = await sql<{ project_id: string }[]>`select project_id from conversations where session_id = ${req.ctx.sessionId}`;
+  if (!row || row.project_id !== req.ctx.projectId) return c.json({ error: "Unknown session" }, 404);
+
+  await sql`
+    insert into feedback (session_id, project_id, rating, comment, reply, question, model)
+    values (${req.ctx.sessionId}, ${req.ctx.projectId}, ${rating}, ${clip(comment, 1000)}, ${replyText}, ${clip(question, 2000)}, ${DEFAULT_MODEL})`;
+  return c.json({ ok: true });
 });
 
 app.get("/health", (c) => c.json({ ok: true }));

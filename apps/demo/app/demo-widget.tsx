@@ -49,6 +49,7 @@ export function DemoWidget() {
         areas={CITIES}
         themeColor={THEME_COLOR}
         theme={theme}
+        feedback
         onReady={(w) => (ask.current = w.ask)}
       />
     </>

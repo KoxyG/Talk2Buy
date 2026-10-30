@@ -29,6 +29,11 @@ const strings = {
     paid: (eta: number | null) => (eta === null ? "Paid" : `Paid · arriving in about ${eta} mins`),
     failed: "Payment failed · you can pay again on this site",
     error: "Something went wrong. Please try again.",
+    feedbackGood: "Good answer",
+    feedbackBad: "Bad answer",
+    feedbackPrompt: "What went wrong? (optional)",
+    feedbackSend: "Send",
+    feedbackThanks: "Thanks for the feedback",
   },
   pcm: {
     open: "Chat to order",
@@ -55,6 +60,11 @@ const strings = {
     paid: (eta: number | null) => (eta === null ? "Payment don enter" : `Payment don enter · e go reach in about ${eta} mins`),
     failed: "Payment no go · you fit pay again for this site",
     error: "Something no work. Abeg try again.",
+    feedbackGood: "Correct answer",
+    feedbackBad: "E no correct",
+    feedbackPrompt: "Wetin no correct? (you fit skip am)",
+    feedbackSend: "Send",
+    feedbackThanks: "Thank you for the feedback",
   },
 };
 

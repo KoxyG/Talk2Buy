@@ -1,5 +1,5 @@
-// Talks to the agent API: POST /chat (server-sent events), POST /orders/:id/confirm and
-// POST /orders/status. Shapes match services/tools; prices always come from the server.
+// Talks to the agent API: POST /chat (server-sent events), POST /orders/:id/confirm,
+// POST /orders/status and POST /feedback. Shapes match services/tools; prices always come from the server.
 
 export type ProductCard = { id: string; name: string; shop: string; price: number; unit: string | null; size: number | null; eta_minutes: number };
 
@@ -89,4 +89,15 @@ export async function orderStatus(client: Client, sessionId: string): Promise<Or
   const res = await post(client, "/orders/status", { session_id: sessionId });
   if (!res.ok) return [];
   return ((await res.json()) as { orders: OrderUpdate[] }).orders;
+}
+
+export type Rating = "up" | "down";
+
+export async function sendFeedback(
+  client: Client,
+  sessionId: string,
+  body: { rating: Rating; reply: string; question?: string; comment?: string },
+): Promise<void> {
+  const res = await post(client, "/feedback", { session_id: sessionId, ...body });
+  if (!res.ok) throw new Error(`Feedback failed (${res.status})`);
 }

@@ -115,6 +115,23 @@ button { cursor: pointer; }
 .typing span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes t2b-dot { 0%, 60%, 100% { opacity: 0.3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
 
+.reply { align-self: flex-start; max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
+.reply .bubble { max-width: 100%; }
+.feedback { display: flex; gap: 2px; }
+.rate {
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--t2b-muted);
+}
+.rate:hover { color: var(--t2b-text); background: var(--t2b-surface); }
+.rate svg { width: 16px; height: 16px; }
+.feedback-form { display: flex; gap: 6px; }
+.feedback-form input {
+  flex: 1; min-width: 0; padding: 6px 12px; border: 1px solid var(--t2b-border); border-radius: 999px;
+  background: var(--t2b-bg); font-size: 16px; /* below 16px, iPhones zoom the page on focus */
+}
+.feedback-form .small { margin-top: 0; }
+.feedback-done { padding: 0 4px; font-size: 12px; color: var(--t2b-muted); }
+
 .examples { display: flex; flex-direction: column; gap: 8px; }
 .chip {
   align-self: flex-start; padding: 8px 14px; text-align: left;
