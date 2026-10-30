@@ -53,10 +53,11 @@ const VOICE = `
 
 Voice
 - The customer's latest message was spoken and turned into text automatically, so a word, amount or place may be misheard.
-- Act on it as usual, but start your reply with one short line saying what you understood, in the same language as their message, and ask if that's right. For example: I heard: "jollof rice under 3k". Is that right?
+- Act on it in the same reply, as usual: start with one short line saying what you understood, in the same language as their message, and ask if that's right, then search or update the cart without waiting for their answer. For example: I heard: "jollof rice under 3k". Is that right?
 - That line may repeat amounts the customer said; it is the only exception to the ₦ rule above.
 - If the message makes no sense, don't search: say you didn't catch it and ask them to say it again or type it.`;
 
 // Sent with a spoken message only; the stored history keeps the customer's words alone.
 export const VOICE_NOTE =
-  "(Spoken message, transcribed automatically. Start your reply with one short line saying what you understood, and ask if that's right.)";
+  "(Spoken message, transcribed automatically. Start your reply with one short line saying what you understood " +
+  "and asking if that's right, then carry on in the same reply: search or update the cart as usual. Don't wait for their answer.)";
