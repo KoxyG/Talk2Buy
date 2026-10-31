@@ -31,12 +31,15 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 | Core agent | Muse Spark 1.3 | Meta Model API |
 | Comparison and fallback | Muse Wonder 1.0 | Meta Model API |
 | Comparison (open weights) | Muse Spark Open | Baseten |
-| Voice input (planned) | Muse Voice Transcribe | Meta Model API |
+| Voice input | Muse Spark Open (audio input) | Baseten |
 
 The live demo currently runs on **Muse Spark Open** (`AGENT_MODEL=spark-open`). The Meta Model API
 returns `model_not_found` for requests from our host (Render), although the same key works from a
 home connection; we have reported this to Meta. All three models score 100% on the eval and use the
 same OpenAI-compatible API, so switching back is one environment variable.
+
+Voice clips also go to Muse Spark Open, which accepts audio. Muse Voice Transcribe is offered only
+as a realtime connection on the Meta Model API, which our host can't reach.
 
 ## Safety by design
 
@@ -89,7 +92,9 @@ Or in React:
     <Talk2BuyWidget projectId="sample" apiUrl="http://localhost:8787" areas={["Lagos", "Abuja"]} />
 
 Options: `themeColor` (`data-theme-color`), `theme` (`data-theme`: `light` or `dark`, default light),
-`language` (`data-language`: `en` or `pcm`), and a fixed `area` or a list of `areas` to choose from.
+`language` (`data-language`: `en` or `pcm`), a fixed `area` or a list of `areas` to choose from,
+`voice` (`data-voice`: a mic button; the message is transcribed and sent, and the reply starts by
+checking what was heard) and `feedback` (`data-feedback`: thumbs up/down under each reply).
 The widget runs in a shadow root, so it doesn't clash with the host site's styles.
 
 ## Deployment
@@ -107,6 +112,11 @@ The widget runs in a shadow root, so it doesn't clash with the host site's style
 
 - Root directory: `apps/demo`
 - Environment: `NEXT_PUBLIC_AGENT_URL` set to the agent's URL (public; it is only an address)
+
+**Database (Supabase):** run the files in `services/tools/db/migrations` in order in the SQL editor.
+Feedback from the widget lands in the `feedback` table:
+
+    select created_at, rating, question, reply, comment, model from feedback order by created_at desc;
 
 **Allowed sites:** the agent only accepts browser requests from domains in the project's
 `allowed_domains`. Add each site that embeds the widget:

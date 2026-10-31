@@ -71,7 +71,7 @@ export function App(props: AppProps) {
   useEffect(() => save(key("area"), area), [area]);
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [entries, open, busy]);
+  }, [entries, open, busy, voice]);
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
@@ -274,12 +274,18 @@ export function App(props: AppProps) {
               return <Orders entry={entry} t={t} statuses={statuses} busy={confirming} onConfirm={() => confirmAll(entry.orders)} />;
           }
         })}
+        {voice === "transcribing" && (
+          <div class="bubble user voice-pending" role="status" aria-label={t.transcribing}>
+            <span class="voice-mark"><MicIcon /></span>
+            <span class="dots" aria-hidden="true"><span /><span /><span /></span>
+          </div>
+        )}
         {busy && <div class="typing" aria-hidden="true"><span /><span /><span /></div>}
       </div>
 
       <form class="composer" onSubmit={(e) => { e.preventDefault(); void ask(input); }}>
         <input ref={inputRef} value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
-          placeholder={voice === "listening" ? t.listening : voice === "transcribing" ? t.transcribing : t.placeholder}
+          placeholder={voice === "listening" ? t.listening : t.placeholder}
           aria-label={t.placeholder} maxLength={2000} readOnly={voice !== "idle"} />
         {props.voice && canRecord() && (
           <button type="button" class={`mic ${voice}`} onClick={toggleVoice} disabled={busy || voice === "transcribing"}

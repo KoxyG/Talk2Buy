@@ -117,6 +117,12 @@ button { cursor: pointer; }
 
 .voice-mark { display: inline-grid; vertical-align: -2px; margin-right: 6px; opacity: 0.8; }
 .voice-mark svg { width: 14px; height: 14px; }
+.voice-pending { display: flex; align-items: center; gap: 6px; }
+.voice-pending .voice-mark { margin-right: 0; }
+.dots { display: flex; gap: 4px; padding: 4px 2px; }
+.dots span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: t2b-dot 1.2s infinite ease-in-out; }
+.dots span:nth-child(2) { animation-delay: 0.15s; }
+.dots span:nth-child(3) { animation-delay: 0.3s; }
 .reply { align-self: flex-start; max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
 .reply .bubble { max-width: 100%; }
 .feedback { display: flex; gap: 2px; }
@@ -206,7 +212,7 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel, .typing span, .composer .mic.listening { animation: none; }
+  .panel, .typing span, .dots span, .composer .mic.listening { animation: none; }
   .launcher { transition: none; }
 }
 `;
