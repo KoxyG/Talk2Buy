@@ -2,11 +2,17 @@
 // host page's styles and the widget's never mix.
 
 import { h, render } from "preact";
+import type { OrderSummary } from "./api";
 import { App } from "./App";
 import type { Language } from "./i18n";
 import { styles } from "./styles";
 
 export type Theme = "light" | "dark";
+
+// What the widget reports to the page around it.
+export type WidgetEvent =
+  | { type: "orders"; orders: OrderSummary[]; total: number } // waiting for the customer's Confirm
+  | { type: "confirmed"; orderIds: string[] };
 
 export type WidgetOptions = {
   projectId: string;
@@ -23,6 +29,14 @@ export type WidgetOptions = {
   feedback?: boolean;
   // Shows a mic button that turns speech into text in the input box. Off by default.
   voice?: boolean;
+  // "popup" (default): a floating button that opens the chat over the page.
+  // "inline": the chat fills `container` and is always open, e.g. inside a frame.
+  layout?: "popup" | "inline";
+  // Where the widget is added. Defaults to document.body.
+  container?: HTMLElement;
+  // Inline only: shows a close button that calls this.
+  onClose?: () => void;
+  onEvent?: (event: WidgetEvent) => void;
   // For logged-in customers: a short-lived token from the host's backend, sent with each request.
   getUserToken?: () => Promise<string | null> | string | null;
 };
@@ -32,7 +46,7 @@ export type Widget = { ask: (text: string) => void; setTheme: (theme: Theme) => 
 export function mount(options: WidgetOptions): Widget {
   const host = document.createElement("div");
   host.setAttribute("data-talk2buy", "");
-  document.body.appendChild(host);
+  (options.container ?? document.body).appendChild(host);
   const shadow = host.attachShadow({ mode: "open" });
 
   const style = document.createElement("style");
@@ -40,6 +54,7 @@ export function mount(options: WidgetOptions): Widget {
   shadow.appendChild(style);
   if (options.themeColor) host.style.setProperty("--t2b-accent", options.themeColor);
   host.dataset.theme = options.theme ?? "light";
+  host.dataset.layout = options.layout ?? "popup";
 
   const root = document.createElement("div");
   root.className = "root";
@@ -49,6 +64,7 @@ export function mount(options: WidgetOptions): Widget {
   render(
     h(App, {
       ...options,
+      inline: options.layout === "inline",
       language: options.language ?? "en",
       onAsk: (fn) => {
         ask = fn;

@@ -71,6 +71,10 @@ button { cursor: pointer; }
   .panel { inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0; }
   .launcher { right: 16px; bottom: 16px; }
 }
+/* Inline: the chat fills its container (e.g. a host's frame) instead of floating. */
+:host([data-layout="inline"]) { display: block; height: 100%; }
+:host([data-layout="inline"]) .root { height: 100%; }
+.panel.inline { position: static; width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; animation: none; }
 
 .header {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px;

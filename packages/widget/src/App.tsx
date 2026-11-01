@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { confirmOrder, orderStatus, sendFeedback, sendMessage, transcribe, type CartView, type ChatEvent, type Client, type OrderSummary, type OrderUpdate, type ProductCard, type Rating } from "./api";
 import { getStrings, naira, type Language, type Strings } from "./i18n";
+import type { WidgetEvent } from "./index";
 import { canRecord, record, type Recording } from "./recorder";
 
 export type Entry =
@@ -23,6 +24,11 @@ export type AppProps = Client & {
   feedback?: boolean;
   // Mic button that turns speech into text in the input box.
   voice?: boolean;
+  // Always open, filling the page around it (see WidgetOptions.layout).
+  inline?: boolean;
+  // Inline only: the close button calls this; without it there is no close button.
+  onClose?: () => void;
+  onEvent?: (event: WidgetEvent) => void;
   // Asks from outside the widget, e.g. example buttons on the host page.
   onAsk?: (ask: (text: string) => void) => () => void;
 };
@@ -53,7 +59,7 @@ export function App(props: AppProps) {
   const t = getStrings(props.language);
   const key = (name: string) => `talk2buy:${props.projectId}:${name}`;
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!props.inline);
   const [entries, setEntries] = useState<Entry[]>(() => load(key("entries"), []));
   const [sessionId, setSessionId] = useState<string | undefined>(() => load(key("session"), undefined));
   const [area, setArea] = useState<string>(() => props.area ?? load(key("area"), ""));
@@ -99,6 +105,7 @@ export function App(props: AppProps) {
     // Text that follows a card starts a new bubble; text right after text joins it.
     const onEvent = (event: ChatEvent) => {
       if (event.type === "session") return setSessionId(event.session_id);
+      if (event.type === "orders") props.onEvent?.({ type: "orders", orders: event.orders, total: event.total });
       setEntries((list) => {
         const last = list[list.length - 1];
         switch (event.type) {
@@ -142,15 +149,18 @@ export function App(props: AppProps) {
   async function confirmAll(orders: OrderSummary[]) {
     if (!sessionId) return;
     setConfirming(true);
+    const confirmed: string[] = [];
     try {
       for (const o of orders) {
         if (statuses[o.order_id]?.status !== "pending" && statuses[o.order_id]) continue;
         await confirmOrder(props, sessionId, o.order_id);
+        confirmed.push(o.order_id);
       }
     } catch {
       setEntries((e) => [...e, { kind: "error", text: t.error }]);
     } finally {
       setConfirming(false);
+      if (confirmed.length) props.onEvent?.({ type: "confirmed", orderIds: confirmed });
     }
     const ids = new Set(orders.map((o) => o.order_id));
     const started = Date.now();
@@ -206,7 +216,7 @@ export function App(props: AppProps) {
   const latestCart = entries.findLastIndex((e) => e.kind === "cart");
   const latestOrders = entries.findLastIndex((e) => e.kind === "orders");
 
-  if (!open) {
+  if (!open && !props.inline) {
     return (
       <button class="launcher" type="button" onClick={() => setOpen(true)} aria-label={t.open}>
         <ChatIcon />
@@ -216,16 +226,18 @@ export function App(props: AppProps) {
   }
 
   return (
-    <div class="panel" role="dialog" aria-label={props.title ?? t.title}>
+    <div class={`panel${props.inline ? " inline" : ""}`} role="dialog" aria-label={props.title ?? t.title}>
       <div class="header">
         <div class="avatar" aria-hidden="true"><BagIcon /></div>
         <div class="titles">
           <div class="title">{props.title ?? t.title}</div>
           <div class="subtitle">{t.subtitle}</div>
         </div>
-        <button class="icon-button" type="button" onClick={() => setOpen(false)} aria-label={t.close}>
-          <CloseIcon />
-        </button>
+        {(!props.inline || props.onClose) && (
+          <button class="icon-button" type="button" onClick={() => (props.inline ? props.onClose!() : setOpen(false))} aria-label={t.close}>
+            <CloseIcon />
+          </button>
+        )}
       </div>
 
       {!props.area && props.areas?.length ? (

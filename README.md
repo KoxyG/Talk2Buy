@@ -97,6 +97,32 @@ Options: `themeColor` (`data-theme-color`), `theme` (`data-theme`: `light` or `d
 checking what was heard) and `feedback` (`data-feedback`: thumbs up/down under each reply).
 The widget runs in a shadow root, so it doesn't clash with the host site's styles.
 
+### Embedding in a frame
+
+Host sites can also open the hosted chat page in a frame (a popup, side panel or page), the way
+hosted KYC and checkout pages are embedded. Only sites in the project's `allowed_domains` can frame
+it. The page reports to the host with `postMessage`: `talk2buy:ready`, `talk2buy:close`,
+`talk2buy:orders` (orders waiting for the customer's Confirm) and `talk2buy:confirmed`.
+
+    <button id="order-ai">Order with AI</button>
+    <dialog id="talk2buy" style="padding:0;width:420px;height:680px;border:0;border-radius:20px">
+      <iframe src="https://talk2buy.vercel.app/embed?project=YOUR_PROJECT&voice&feedback"
+              allow="microphone" style="width:100%;height:100%;border:0"></iframe>
+    </dialog>
+    <script>
+      const dialog = document.getElementById("talk2buy");
+      document.getElementById("order-ai").onclick = () => dialog.showModal();
+      window.addEventListener("message", (e) => {
+        if (e.origin !== "https://talk2buy.vercel.app") return; // only Talk2Buy
+        if (e.data.type === "talk2buy:close") dialog.close();
+        if (e.data.type === "talk2buy:confirmed") { /* e.g. open your order page */ }
+      });
+    </script>
+
+URL settings: `project`, `theme` (`dark`), `language` (`pcm`), `color`, `area` or `areas`
+(comma-separated), `voice` and `feedback`. `allow="microphone"` is needed for voice: browsers block
+the microphone in a frame from another domain unless the host grants it.
+
 ## Deployment
 
 **Agent API (Render, Node):**
@@ -105,7 +131,8 @@ The widget runs in a shadow root, so it doesn't clash with the host site's style
 - Build: `corepack pnpm install --frozen-lockfile`
 - Start: `corepack pnpm --filter @talk2buy/agent exec tsx src/server.ts`
 - Environment: the keys from `.env.example`, plus `AGENT_PORT=10000`, `NODE_VERSION=22`,
-  `COREPACK_ENABLE_DOWNLOAD_PROMPT=0` and, for now, `AGENT_MODEL=spark-open`
+  `COREPACK_ENABLE_DOWNLOAD_PROMPT=0`, `EMBED_HOSTS=talk2buy.vercel.app` (the domain serving
+  `/embed`) and, for now, `AGENT_MODEL=spark-open`
 - Region: Frankfurt, close to the Supabase database (London)
 
 **Demo page (Vercel):**

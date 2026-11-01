@@ -4,6 +4,7 @@
 // POST /orders/status: the widget's check on payment and delivery after Confirm.
 // POST /feedback: thumbs up/down (and an optional comment) on one assistant reply.
 // POST /transcribe: a short voice clip in, the customer's words out (for the input box).
+// GET /projects/:id/embed: the sites allowed to frame the project's /embed page.
 
 import { serve } from "@hono/node-server";
 import { confirmOrder, getOrderUpdates, sql } from "@talk2buy/tools";
@@ -37,9 +38,15 @@ const hostOf = (origin: string) => {
   }
 };
 
+// Talk2Buy's own /embed page runs inside host sites' frames, so its requests come from Talk2Buy's
+// domain whatever the project. Which sites may frame that page is enforced by its frame-ancestors
+// header (apps/demo/proxy.ts), using the project's allowed_domains below.
+// EMBED_HOSTS lists the domains serving /embed, e.g. "talk2buy.vercel.app"; unset means none.
+const EMBED_HOSTS = (process.env.EMBED_HOSTS ?? "").split(",").map((d) => d.replace(/\s+#.*$/, "").trim()).filter(Boolean);
+
 const allows = (project: Project, origin: string) => {
   const host = hostOf(origin);
-  return !!host && project.allowed_domains.some((d) => host === d || host.endsWith(`.${d}`));
+  return !!host && (EMBED_HOSTS.includes(host) || project.allowed_domains.some((d) => host === d || host.endsWith(`.${d}`)));
 };
 
 const app = new Hono();
@@ -179,6 +186,13 @@ app.post("/transcribe", async (c) => {
     console.error(err);
     return c.json({ error: "Transcription failed" }, 502);
   }
+});
+
+// The sites allowed to frame a project's /embed page. Read server-to-server by the page's proxy.
+app.get("/projects/:id/embed", async (c) => {
+  const project = (await getProjects()).get(c.req.param("id"));
+  if (!project) return c.json({ error: "Unknown project" }, 404);
+  return c.json({ allowed_domains: project.allowed_domains });
 });
 
 app.get("/health", (c) => c.json({ ok: true }));
