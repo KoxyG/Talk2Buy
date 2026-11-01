@@ -55,6 +55,13 @@ function save(key: string, value: unknown) {
   }
 }
 
+// The model is asked for plain text but sometimes writes markdown: show **bold** as bold, and
+// drop heading marks and stray asterisks rather than printing them.
+function formatReply(text: string) {
+  const plain = text.replace(/^#{1,6}\s+/gm, "");
+  return plain.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong>{part}</strong> : part.replace(/\*\*/g, "")));
+}
+
 export function App(props: AppProps) {
   const t = getStrings(props.language);
   const key = (name: string) => `talk2buy:${props.projectId}:${name}`;
@@ -271,7 +278,7 @@ export function App(props: AppProps) {
             case "assistant":
               return (
                 <div class="reply">
-                  <div class="bubble assistant">{entry.text}</div>
+                  <div class="bubble assistant">{formatReply(entry.text)}</div>
                   {props.feedback && sessionId && !(busy && i === entries.length - 1) && (
                     <Feedback rating={entry.rating} t={t} onRate={(rating, comment) => rate(i, rating, comment)} />
                   )}
