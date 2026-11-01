@@ -2,7 +2,7 @@
 // prices and stock always come from the store, never from the model. Confirming is not a model
 // tool: only the widget's Confirm button calls confirmOrder.
 
-import { getAdapter, type Customer, type Order, type ProductResult } from "../adapters";
+import { getAdapter, type Customer, type EtaKind, type Order, type ProductResult } from "../adapters";
 import { sql } from "../db";
 import { isOpen } from "../search/filters";
 import { findProducts, type ToolContext } from "./products";
@@ -19,6 +19,7 @@ export type CartItem = {
   quantity: number;
   price: number;
   eta_minutes: number;
+  eta_kind?: EtaKind; // missing in carts saved before it existed: those meant delivery
   note?: string;
 };
 export type NotFound = { query: string; reason: string };
@@ -28,6 +29,7 @@ export type CartView = {
   shops: {
     shop: string;
     eta_minutes: number;
+    eta_kind: EtaKind;
     items: { product_id: string; name: string; quantity: number; price: number; line_total: number; note?: string }[];
     subtotal: number;
   }[];
@@ -66,7 +68,7 @@ export async function updateCart(args: UpdateCartArgs, ctx: ToolContext): Promis
     } else if (quantity === 0) {
       continue; // removing something that isn't in the cart
     } else if (change.product_id) {
-      const p = await getAdapter(ctx.projectId).getProduct(change.product_id, ctx.area);
+      const p = await (await getAdapter(ctx.projectId)).getProduct(change.product_id, ctx.area);
       if (p && available(p, ctx)) items.push(toItem(p, quantity));
       else notFound.push({ query: change.product_id, reason: NOT_FOUND });
     } else if (change.query) {
@@ -91,11 +93,11 @@ export type CreateOrderResult =
 export async function createOrder(_args: unknown, ctx: ToolContext): Promise<CreateOrderResult> {
   const cart = await openCart(ctx);
   if (!cart?.items.length) return { error: "The cart is empty. Build a cart first." };
-  const customer = customerFor(ctx);
+  const customer = await customerFor(ctx);
   if (!customer) return { error: "login_required: the customer must log in on this site to order" };
 
   // Prices and stock can change while the customer decides: re-check every item first.
-  const adapter = getAdapter(ctx.projectId);
+  const adapter = await getAdapter(ctx.projectId);
   const changes: Extract<CreateOrderResult, { status: "cart_changed" }>["changes"] = [];
   const items: CartItem[] = [];
   for (const item of cart.items) {
@@ -105,7 +107,7 @@ export async function createOrder(_args: unknown, ctx: ToolContext): Promise<Cre
       continue;
     }
     if (p.price !== item.price) changes.push({ name: item.name, change: "price", old_price: item.price, new_price: p.price });
-    items.push({ ...item, price: p.price, eta_minutes: p.etaMinutes });
+    items.push({ ...item, price: p.price, eta_minutes: p.etaMinutes, eta_kind: p.etaKind });
   }
   if (changes.length) {
     return { status: "cart_changed", changes, cart: view(await saveOpenCart(ctx, items, cart.items_not_found)) };
@@ -130,18 +132,18 @@ export async function createOrder(_args: unknown, ctx: ToolContext): Promise<Cre
 // Called only by POST /orders/:id/confirm (the widget's Confirm button), never by the model.
 // Returns null if the order doesn't belong to this session.
 export async function confirmOrder(orderId: string, ctx: Pick<ToolContext, "projectId" | "sessionId" | "userToken">): Promise<Order | null> {
-  const customer = customerFor(ctx);
+  const customer = await customerFor(ctx);
   const [own] = await sql`
     select 1 from carts
     where project_id = ${ctx.projectId} and session_id = ${ctx.sessionId} and ${orderId} = any(order_ids)`;
   if (!own || !customer) return null;
-  return getAdapter(ctx.projectId).confirmOrder(orderId, customer);
+  return (await getAdapter(ctx.projectId)).confirmOrder(orderId, customer);
 }
 
 // Logged-in customers order with their own token; guests only where the store allows it.
-export function customerFor(ctx: Pick<ToolContext, "projectId" | "sessionId" | "userToken">): Customer | null {
+export async function customerFor(ctx: Pick<ToolContext, "projectId" | "sessionId" | "userToken">): Promise<Customer | null> {
   if (ctx.userToken) return { userToken: ctx.userToken };
-  return getAdapter(ctx.projectId).guestCheckout ? { userToken: `guest:${ctx.sessionId}` } : null;
+  return (await getAdapter(ctx.projectId)).guestCheckout ? { userToken: `guest:${ctx.sessionId}` } : null;
 }
 
 async function addItem(item: RequestedItem, quantity: number, ctx: ToolContext, items: CartItem[], notFound: NotFound[]) {
@@ -177,6 +179,7 @@ const toItem = (p: ProductResult, quantity: number, note?: string): CartItem => 
   quantity,
   price: p.price,
   eta_minutes: p.etaMinutes,
+  eta_kind: p.etaKind,
   ...(note && { note }),
 });
 
@@ -197,7 +200,7 @@ function view(cart: CartRow): CartView {
   const shops = new Map<string, CartView["shops"][number]>();
   for (const i of cart.items) {
     let shop = shops.get(i.shop_id);
-    if (!shop) shops.set(i.shop_id, (shop = { shop: i.shop, eta_minutes: i.eta_minutes, items: [], subtotal: 0 }));
+    if (!shop) shops.set(i.shop_id, (shop = { shop: i.shop, eta_minutes: i.eta_minutes, eta_kind: i.eta_kind ?? "delivery", items: [], subtotal: 0 }));
     const line_total = i.price * i.quantity;
     shop.items.push({ product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.price, line_total, ...(i.note && { note: i.note }) });
     shop.subtotal += line_total;

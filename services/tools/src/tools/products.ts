@@ -1,6 +1,6 @@
 // search_products and get_product: the only way the model sees products and prices.
 
-import { getAdapter, type Category, type ProductResult } from "../adapters";
+import { getAdapter, type Category, type EtaKind, type ProductResult } from "../adapters";
 import { applyFilters, isOpen, narrowBySize, stripUnitWords } from "../search/filters";
 import { correctSpelling, LOOSE, STRICT, type Correction } from "../search/spelling";
 
@@ -26,10 +26,11 @@ export type ProductCard = {
   unit: string | null;
   size: number | null;
   eta_minutes: number;
+  eta_kind: EtaKind;
 };
 
 const toCard = (p: ProductResult): ProductCard =>
-  ({ id: p.id, name: p.name, shop: p.shop.name, price: p.price, unit: p.unit, size: p.size, eta_minutes: p.etaMinutes });
+  ({ id: p.id, name: p.name, shop: p.shop.name, price: p.price, unit: p.unit, size: p.size, eta_minutes: p.etaMinutes, eta_kind: p.etaKind });
 
 export type SearchProductsArgs = { query: string; category?: Category; max_price?: number; max_eta_minutes?: number };
 export type SearchProductsResult = { query: string; corrections: Correction[]; products: ProductCard[]; note?: string };
@@ -39,7 +40,7 @@ export type FoundProducts = { query: string; corrections: Correction[]; results:
 // The search behind search_products and build_cart: spelling correction, store search, filters,
 // and size narrowing. Results keep full product and shop details.
 export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<FoundProducts> {
-  const adapter = getAdapter(ctx.projectId);
+  const adapter = await getAdapter(ctx.projectId);
   const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes, now: ctx.now ?? new Date() };
   // anyCategory ignores the model's category; passing undefined would fall back to it.
   const find = async (query: string, anyCategory = false) => {
@@ -86,7 +87,7 @@ export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext)
 export type GetProductArgs = { product_id: string };
 
 export async function getProduct(args: GetProductArgs, ctx: ToolContext) {
-  const p = await getAdapter(ctx.projectId).getProduct(args.product_id, ctx.area);
+  const p = await (await getAdapter(ctx.projectId)).getProduct(args.product_id, ctx.area);
   if (!p || p.shop.area.toLowerCase() !== ctx.area.toLowerCase()) return { error: "not_found" as const };
   return { ...toCard(p), description: p.description, in_stock: p.inStock, open_now: isOpen(p.shop, ctx.now ?? new Date()) };
 }

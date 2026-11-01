@@ -26,7 +26,11 @@ export type Product = {
   inStock: boolean;
 };
 
-export type ProductResult = Product & { shop: Shop; etaMinutes: number };
+// What etaMinutes measures: "delivery" is until the order reaches the customer; "preparation" is
+// until the shop has it ready, for stores that publish no delivery time.
+export type EtaKind = "delivery" | "preparation";
+
+export type ProductResult = Product & { shop: Shop; etaMinutes: number; etaKind: EtaKind };
 
 // Hints the store may use to narrow its search. Tools re-apply every filter to the results,
 // so a store that ignores some of these still returns correct answers.

@@ -318,7 +318,7 @@ function Products({ entry, t, disabled, onAdd }: { entry: Extract<Entry, { kind:
         {entry.products.map((p) => (
           <div class="product">
             <div class="name">{p.name}</div>
-            <div class="meta">{p.shop} · {t.mins(p.eta_minutes)}</div>
+            <div class="meta">{p.shop} · {t.eta(p.eta_minutes, p.eta_kind)}</div>
             <div class="price">{naira(p.price)}</div>
             <button class="secondary small" type="button" disabled={disabled} onClick={() => onAdd(p)}>{t.add}</button>
           </div>
@@ -334,7 +334,7 @@ function Cart({ cart, t, canOrder, disabled, onOrder }: { cart: CartView; t: Str
     <div class="card">
       {cart.shops.map((s) => (
         <div>
-          <div class="shop"><span>{s.shop}</span><span>{t.mins(s.eta_minutes)}</span></div>
+          <div class="shop"><span>{s.shop}</span><span>{t.eta(s.eta_minutes, s.eta_kind)}</span></div>
           {s.items.map((i) => (
             <div class="line"><span>{i.quantity} × {i.name}</span><span>{naira(i.line_total)}</span></div>
           ))}

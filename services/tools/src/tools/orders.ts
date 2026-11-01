@@ -23,7 +23,7 @@ export type OrderStatusArgs = { order_id?: string };
 // The session's recent orders, newest first; order_id narrows to one of them.
 export async function getOrderUpdates(args: OrderStatusArgs, ctx: Pick<ToolContext, "projectId" | "sessionId" | "userToken">):
   Promise<{ orders: OrderUpdate[] } | { error: string }> {
-  const customer = customerFor(ctx);
+  const customer = await customerFor(ctx);
   const carts = await sql<{ order_ids: string[]; items: CartItem[] }[]>`
     select order_ids, items from carts
     where project_id = ${ctx.projectId} and session_id = ${ctx.sessionId} and cardinality(order_ids) > 0
@@ -33,7 +33,7 @@ export async function getOrderUpdates(args: OrderStatusArgs, ctx: Pick<ToolConte
     .filter((o) => !args.order_id || o.id === args.order_id);
   if (!customer || !owned.length) return { error: "no_orders: the customer has no orders in this chat" };
 
-  const adapter = getAdapter(ctx.projectId);
+  const adapter = await getAdapter(ctx.projectId);
   const orders = await Promise.all(owned.map(async ({ id, items }): Promise<OrderUpdate | null> => {
     const [order, payment, eta] = await Promise.all([
       adapter.getOrder(id, customer),

@@ -11,7 +11,7 @@ const productsById = new Map(products.map((p) => [p.id, p]));
 
 function withShop(p: Product): ProductResult {
   const { deliveryMinutes, ...shop } = shopsById.get(p.shopId)!;
-  return { ...p, shop, etaMinutes: shop.avgPrepMinutes + deliveryMinutes };
+  return { ...p, shop, etaMinutes: shop.avgPrepMinutes + deliveryMinutes, etaKind: "delivery" };
 }
 
 // Sizes like "5kg" are skipped: the tools filter on size, not the text search.
