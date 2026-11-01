@@ -93,11 +93,14 @@ export type CreateOrderResult =
 export async function createOrder(_args: unknown, ctx: ToolContext): Promise<CreateOrderResult> {
   const cart = await openCart(ctx);
   if (!cart?.items.length) return { error: "The cart is empty. Build a cart first." };
+  const adapter = await getAdapter(ctx.projectId);
+  if (adapter.ordersConnected === false) {
+    return { error: "ordering_unavailable: this store can't take orders through the chat yet; the customer can order these items on the store's own site" };
+  }
   const customer = await customerFor(ctx);
   if (!customer) return { error: "login_required: the customer must log in on this site to order" };
 
   // Prices and stock can change while the customer decides: re-check every item first.
-  const adapter = await getAdapter(ctx.projectId);
   const changes: Extract<CreateOrderResult, { status: "cart_changed" }>["changes"] = [];
   const items: CartItem[] = [];
   for (const item of cart.items) {

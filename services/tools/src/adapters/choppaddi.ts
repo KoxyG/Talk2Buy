@@ -1,8 +1,8 @@
 // Choppaddi, read through its public API exactly as it is. Built per project from adapter_config:
 //   { "apiUrl": "https://testnet.choppaddi.cloud/api/v1" }
 // Read-only for now: search and product details work; ordering needs Choppaddi API keys and the
-// customer's Choppaddi login, so the order methods say it isn't connected yet. With no guest
-// checkout, create_order already answers "login_required" before reaching them.
+// customer's Choppaddi login, so ordersConnected is false and create_order sends the customer to
+// Choppaddi's own site. The order methods still throw if anything reaches them.
 // Choppaddi publishes preparation times but no delivery times, so ETAs are preparation only
 // (etaKind "preparation").
 
@@ -118,6 +118,7 @@ export function choppaddiAdapter(config: ChoppaddiConfig): StoreAdapter {
 
   return {
     guestCheckout: false,
+    ordersConnected: false,
 
     async searchProducts({ query, area, limit = 20 }) {
       const [data, byUuid] = await Promise.all([
