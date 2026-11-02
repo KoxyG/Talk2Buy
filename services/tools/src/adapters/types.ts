@@ -57,12 +57,25 @@ export type Order = {
 // Identifies the customer to the store. Guests have no token and can't place orders.
 export type Customer = { userToken: string };
 
+// One shop's part of a cart, in the host's own IDs, for its own checkout (talk2buy:cart).
+// vendorId is the shop's ID (Shop.id).
+export type HandoffCart = {
+  vendorId: string;
+  vendorSlug?: string;
+  items: { productId: string; quantity: number; variantId?: string }[];
+};
+
 export interface StoreAdapter {
   // Whether guests (no user token) may place orders. Real stores need the customer to log in.
   guestCheckout?: boolean;
   // false while ordering through this store isn't built yet: search and carts still work, and
   // create_order sends the customer to the store's own site. Missing means ordering works.
   ordersConnected?: boolean;
+  // "handoff": the host page takes the cart to its own checkout. create_order re-checks the cart
+  // and hands it to the page (one talk2buy:cart per shop) instead of placing orders.
+  checkout?: "handoff";
+  // For handoff: the cart's lines grouped per shop, in the host's own IDs.
+  handoff?(items: { productId: string; shopId: string; quantity: number }[]): HandoffCart[];
   searchProducts(q: ProductQuery): Promise<ProductResult[]>;
   getProduct(id: string, area: string): Promise<ProductResult | null>;
   createOrder(items: { productId: string; quantity: number }[], customer: Customer): Promise<Order[]>; // one per shop

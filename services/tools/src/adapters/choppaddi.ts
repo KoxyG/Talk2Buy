@@ -1,12 +1,12 @@
 // Choppaddi, read through its public API exactly as it is. Built per project from adapter_config:
 //   { "apiUrl": "https://testnet.choppaddi.cloud/api/v1" }
-// Read-only for now: search and product details work; ordering needs Choppaddi API keys and the
-// customer's Choppaddi login, so ordersConnected is false and create_order sends the customer to
-// Choppaddi's own site. The order methods still throw if anything reaches them.
+// Choppaddi takes no orders through its API from us: create_order hands the cart to Choppaddi's
+// page (checkout "handoff"), which loads it into its own cart and checkout. The order methods
+// throw if anything reaches them.
 // Choppaddi publishes preparation times but no delivery times, so ETAs are preparation only
 // (etaKind "preparation").
 
-import type { Category, Day, Order, Product, ProductResult, Shop, StoreAdapter } from "./types";
+import type { Category, Day, HandoffCart, Order, Product, ProductResult, Shop, StoreAdapter } from "./types";
 
 export type ChoppaddiConfig = { apiUrl: string };
 
@@ -18,10 +18,15 @@ type Vendor = {
   address: string | null; city: string | null; state: string | null;
   opening_time: string | null; closing_time: string | null; business_days: string[] | null; preparation_time: number | null;
 };
+type Variant = {
+  uuid: string; price: number | null; stock_quantity: number | null; is_active: boolean;
+  values: { attributeValue: { attribute_uuid: string; value: string } }[];
+};
+type Attribute = { uuid: string; display_order: number };
 type ChoppaddiProduct = {
   uuid: string; vendor_uuid: string; name: string; description: string | null; categories: string[] | null;
   price: number; discount: number | null; discount_price: number | null; processing_time: string | null;
-  stock: boolean; deleted_at: string | null;
+  stock: boolean; deleted_at: string | null; has_variants?: boolean; attributes?: Attribute[]; variants?: Variant[];
 };
 
 const DAYS: Record<string, Day> = { monday: "mon", tuesday: "tue", wednesday: "wed", thursday: "thu", friday: "fri", saturday: "sat", sunday: "sun" };
@@ -67,28 +72,37 @@ function toShop(v: Vendor, area: string): Shop {
   };
 }
 
-// IDs carry the vendor slug, because Choppaddi looks products up by vendor and product together.
-const toId = (v: Vendor, p: ChoppaddiProduct) => `${v.slug}:${p.uuid}`;
+// IDs carry the vendor slug, because Choppaddi looks products up by vendor and product together,
+// and the variant for products sold in variants: "slug:product" or "slug:product:variant".
+const toId = (v: Vendor, p: ChoppaddiProduct, variant?: Variant) => [v.slug, p.uuid, variant?.uuid].filter(Boolean).join(":");
 
-function toResult(p: ChoppaddiProduct, v: Vendor, area: string): ProductResult {
+// "M, Red": the variant's values in the product's attribute order (Size, then Colour).
+function variantName(p: ChoppaddiProduct, variant: Variant) {
+  const order = new Map((p.attributes ?? []).map((a) => [a.uuid, a.display_order]));
+  const rank = (v: Variant["values"][number]) => order.get(v.attributeValue.attribute_uuid) ?? 0;
+  return [...variant.values].sort((a, b) => rank(a) - rank(b)).map((v) => v.attributeValue.value).join(", ");
+}
+
+function toResult(p: ChoppaddiProduct, v: Vendor, area: string, variant?: Variant): ProductResult {
   const shop = toShop(v, area);
   const category: Category = isFood(p.categories, v.vendor_type) ? "food" : "grocery";
   const product: Product = {
-    id: toId(v, p),
+    id: toId(v, p, variant),
     shopId: v.uuid,
-    name: p.name,
+    name: variant ? `${p.name} (${variantName(p, variant)})` : p.name,
     category,
     description: p.description ?? "",
     unit: unitOf(p.name),
     size: null,
-    price: p.discount && p.discount_price ? p.discount_price : p.price,
-    inStock: p.stock && !p.deleted_at,
+    price: variant?.price ?? (p.discount && p.discount_price ? p.discount_price : p.price),
+    // A variant without stock_quantity isn't counted, so it counts as in stock while active.
+    inStock: p.stock && !p.deleted_at && (!variant || (variant.is_active && (variant.stock_quantity ?? 1) > 0)),
   };
   const minutes = Number.parseInt(p.processing_time ?? "", 10);
   return { ...product, shop, etaMinutes: Number.isFinite(minutes) ? minutes : shop.avgPrepMinutes, etaKind: "preparation" };
 }
 
-const NOT_CONNECTED = "Ordering through Choppaddi isn't connected yet";
+const NOT_CONNECTED = "Choppaddi orders go through its own checkout (handoff)";
 
 export function choppaddiAdapter(config: ChoppaddiConfig): StoreAdapter {
   if (typeof config.apiUrl !== "string" || !config.apiUrl) throw new Error("Choppaddi adapter_config needs apiUrl");
@@ -116,32 +130,57 @@ export function choppaddiAdapter(config: ChoppaddiConfig): StoreAdapter {
     return vendors.byUuid;
   }
 
+  async function getFull(slug: string, uuid: string) {
+    return (await get<{ product: ChoppaddiProduct }>(`/product/${encodeURIComponent(slug)}/${encodeURIComponent(uuid)}`))?.product ?? null;
+  }
+
+  // A product sold in variants is offered once per variant, since checkout needs the variant.
+  // Search results don't list variants, so those products are read in full.
+  async function withVariants(p: ChoppaddiProduct, v: Vendor, area: string): Promise<ProductResult[]> {
+    if (!p.has_variants) return [toResult(p, v, area)];
+    const full = p.variants ? p : await getFull(v.slug, p.uuid);
+    return (full?.variants ?? []).map((variant) => toResult(full!, v, area, variant));
+  }
+
   return {
     guestCheckout: false,
-    ordersConnected: false,
+    checkout: "handoff",
 
     async searchProducts({ query, area, limit = 20 }) {
       const [data, byUuid] = await Promise.all([
         get<{ products: ChoppaddiProduct[] }>(`/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(area)}&country=Nigeria`),
         getVendors(),
       ]);
-      return (data?.products ?? [])
+      const found = (data?.products ?? [])
         .flatMap((p) => {
           const v = byUuid.get(p.vendor_uuid);
-          return v ? [toResult(p, v, area)] : []; // only approved vendors
+          return v ? [{ p, v }] : []; // only approved vendors
         })
         .slice(0, limit);
+      return (await Promise.all(found.map(({ p, v }) => withVariants(p, v, area)))).flat().slice(0, limit);
     },
 
     async getProduct(id, area) {
-      const [slug, uuid] = id.split(":");
+      const [slug, uuid, variantUuid] = id.split(":");
       if (!slug || !uuid) return null;
-      const [data, byUuid] = await Promise.all([
-        get<{ product: ChoppaddiProduct }>(`/product/${encodeURIComponent(slug)}/${encodeURIComponent(uuid)}`),
-        getVendors(),
-      ]);
-      const v = data && byUuid.get(data.product.vendor_uuid);
-      return v ? toResult(data.product, v, area) : null;
+      const [p, byUuid] = await Promise.all([getFull(slug, uuid), getVendors()]);
+      const v = p && byUuid.get(p.vendor_uuid);
+      if (!v) return null;
+      // Products sold in variants can only be ordered as one of them.
+      if (!p.has_variants) return variantUuid ? null : toResult(p, v, area);
+      const variant = p.variants?.find((x) => x.uuid === variantUuid);
+      return variant ? toResult(p, v, area, variant) : null;
+    },
+
+    handoff(items) {
+      const carts = new Map<string, HandoffCart>();
+      for (const item of items) {
+        const [vendorSlug, productId, variantId] = item.productId.split(":");
+        let cart = carts.get(item.shopId);
+        if (!cart) carts.set(item.shopId, (cart = { vendorId: item.shopId, vendorSlug, items: [] }));
+        cart.items.push({ productId: productId!, quantity: item.quantity, ...(variantId && { variantId }) });
+      }
+      return [...carts.values()];
     },
 
     async createOrder(): Promise<Order[]> {

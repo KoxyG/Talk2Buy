@@ -131,7 +131,8 @@ export const createOrderDefinition = {
     description:
       "Turn the customer's open cart into orders (one per shop), only after they have seen the " +
       "cart total and said they want to order. Orders stay pending until the customer presses " +
-      "Confirm. If the result is cart_changed, explain the changes and ask again.",
+      "Confirm. If the result is cart_changed, explain the changes and ask again. If it is " +
+      "handed_off, the cart went to this website's own checkout instead.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 } as const;

@@ -2,7 +2,7 @@
 // prices and stock always come from the store, never from the model. Confirming is not a model
 // tool: only the widget's Confirm button calls confirmOrder.
 
-import { getAdapter, type Customer, type EtaKind, type Order, type ProductResult } from "../adapters";
+import { getAdapter, type Customer, type EtaKind, type HandoffCart, type Order, type ProductResult } from "../adapters";
 import { sql } from "../db";
 import { isOpen } from "../search/filters";
 import { findProducts, type ToolContext } from "./products";
@@ -81,6 +81,7 @@ export async function updateCart(args: UpdateCartArgs, ctx: ToolContext): Promis
 export type CreateOrderResult =
   | { error: string }
   | { status: "cart_changed"; changes: { name: string; change: "unavailable" | "price"; old_price?: number; new_price?: number }[]; cart: CartView }
+  | { status: "handed_off"; carts: HandoffCart[]; total: number; next_step: string }
   | {
       status: "awaiting_confirmation";
       orders: { order_id: string; shop: string; items: { name: string; quantity: number; price: number }[]; total: number }[];
@@ -89,16 +90,17 @@ export type CreateOrderResult =
     };
 
 // Turns the open cart into pending orders, one per shop. Nothing is placed until the customer
-// presses Confirm.
+// presses Confirm. Stores with checkout "handoff" get the re-checked cart for their own checkout.
 export async function createOrder(_args: unknown, ctx: ToolContext): Promise<CreateOrderResult> {
   const cart = await openCart(ctx);
   if (!cart?.items.length) return { error: "The cart is empty. Build a cart first." };
   const adapter = await getAdapter(ctx.projectId);
   if (adapter.ordersConnected === false) {
-    return { error: "ordering_unavailable: this store can't take orders through the chat yet; the customer can order these items on the store's own site" };
+    return { error: "ordering_unavailable: ordering through the chat isn't connected yet; the customer can order these items through this website's own checkout (the website they are on now, not a shop's site)" };
   }
-  const customer = await customerFor(ctx);
-  if (!customer) return { error: "login_required: the customer must log in on this site to order" };
+  const handoff = adapter.checkout === "handoff";
+  const customer = handoff ? null : await customerFor(ctx);
+  if (!handoff && !customer) return { error: "login_required: the customer must log in on this site to order" };
 
   // Prices and stock can change while the customer decides: re-check every item first.
   const changes: Extract<CreateOrderResult, { status: "cart_changed" }>["changes"] = [];
@@ -116,7 +118,17 @@ export async function createOrder(_args: unknown, ctx: ToolContext): Promise<Cre
     return { status: "cart_changed", changes, cart: view(await saveOpenCart(ctx, items, cart.items_not_found)) };
   }
 
-  const orders = await adapter.createOrder(items.map((i) => ({ productId: i.product_id, quantity: i.quantity })), customer);
+  if (handoff) {
+    await sql`update carts set handed_off_at = now(), updated_at = now() where id = ${cart.id}`;
+    return {
+      status: "handed_off",
+      carts: adapter.handoff!(items.map((i) => ({ productId: i.product_id, shopId: i.shop_id, quantity: i.quantity }))),
+      total: items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      next_step: "The cart is now in this website's checkout, where the customer finishes the order and pays.",
+    };
+  }
+
+  const orders = await adapter.createOrder(items.map((i) => ({ productId: i.product_id, quantity: i.quantity })), customer!);
   await sql`update carts set order_ids = ${sql.array(orders.map((o) => o.id))}, updated_at = now() where id = ${cart.id}`;
   const shopNames = new Map(items.map((i) => [i.shop_id, i.shop]));
   return {
@@ -215,7 +227,7 @@ function view(cart: CartRow): CartView {
 async function openCart(ctx: ToolContext): Promise<CartRow | null> {
   const [row] = await sql<CartRow[]>`
     select id, items, items_not_found from carts
-    where project_id = ${ctx.projectId} and session_id = ${ctx.sessionId} and cardinality(order_ids) = 0`;
+    where project_id = ${ctx.projectId} and session_id = ${ctx.sessionId} and cardinality(order_ids) = 0 and handed_off_at is null`;
   return row ?? null;
 }
 
@@ -224,7 +236,7 @@ async function saveOpenCart(ctx: ToolContext, items: CartItem[], notFound: NotFo
   const [row] = await sql<{ id: string }[]>`
     insert into carts (project_id, session_id, items, total, items_not_found)
     values (${ctx.projectId}, ${ctx.sessionId}, ${sql.json(items as never)}, ${total}, ${sql.json(notFound as never)})
-    on conflict (session_id) where cardinality(order_ids) = 0
+    on conflict (session_id) where cardinality(order_ids) = 0 and handed_off_at is null
     do update set items = excluded.items, total = excluded.total, items_not_found = excluded.items_not_found, updated_at = now()
     returning id`;
   return { id: row!.id, items, items_not_found: notFound };

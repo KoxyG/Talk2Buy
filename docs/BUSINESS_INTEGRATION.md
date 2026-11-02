@@ -10,8 +10,9 @@ customer to confirm. This guide covers what we need from you, the code you add, 
   or your checkout.
 - Products, prices, stock and opening hours always come from your API. The assistant never makes up
   a product or a price.
-- Orders are only placed when the customer presses **Confirm**. The assistant can't take payments,
-  issue refunds or confirm anything on its own.
+- Nothing is ordered without the customer. When they're ready, the assistant hands the cart to
+  your own checkout, or, if you connect ordering in the chat, creates orders they place with
+  **Confirm**. It can't take payments, issue refunds or confirm anything on its own.
 - The chat runs on our hosted page, which your site opens in a dialog or side panel, the same way
   hosted KYC or checkout pages are embedded.
 
@@ -21,11 +22,24 @@ customer to confirm. This guide covers what we need from you, the code you add, 
 |---|---|---|
 | Your API base URL (testnet and production) | So we can read products, shops and opening hours | To start |
 | The domains your site runs on (e.g. `www.yourstore.com`, your testnet domain) | Only these domains are allowed to open the chat | To start |
-| API credentials for creating orders | So the assistant can create orders for the customer to confirm | To turn on ordering |
-| How your site identifies a logged-in customer (the token it holds and how your API accepts it) | So orders are placed as that customer | To turn on ordering |
+| How you want orders to happen: your own checkout (recommended) or ordering in the chat. See "Choosing how orders happen" | So the assistant knows what to do when the customer is ready | To turn on ordering |
 | Your brand colour and the cities you serve | To match your look and show the right cities | Optional |
 
 We set up your store as a project on our side. You get a project ID (for example `yourstore`).
+
+## Choosing how orders happen
+
+**Your own checkout (recommended).** When the customer agrees to order, we re-check prices and
+stock with your API, then post the cart to your page, one message per shop. You load it into your
+own cart, and the customer checks out as usual with your addresses, delivery fees and payment.
+You share no API credentials or customer tokens.
+
+    { type: "talk2buy:cart", vendorId: "<shop id>", vendorSlug: "<shop slug, if your API uses one>",
+      items: [{ productId: "<product id>", quantity: 2, variantId: "<for products sold in variants>" }] }
+
+**Ordering in the chat.** The customer sees their orders and presses **Confirm** without leaving
+the chat. For this we need API credentials for creating orders, and how your site identifies a
+logged-in customer (the token it holds and how your API accepts it).
 
 ## Step 1: Add the button and dialog
 
@@ -98,8 +112,15 @@ The chat tells your page what happens through `postMessage`. Always check that `
 | `talk2buy:close` | The customer pressed the close button | none |
 | `talk2buy:orders` | Orders were created and wait for the customer's Confirm | `orders`, `total` |
 | `talk2buy:confirmed` | The customer confirmed their orders | `orderIds` |
+| `talk2buy:cart` | The customer agreed to order (stores using their own checkout). One message per shop. | `vendorId`, `vendorSlug`, `items` (`productId`, `quantity`, optional `variantId`) |
 
 For example, after `talk2buy:confirmed` you might close the dialog and open your order page.
+If your own checkout takes the cart, listen for `talk2buy:cart`:
+
+    window.addEventListener("message", (e) => {
+      if (e.origin !== "https://talk2buy.vercel.app" || e.data?.type !== "talk2buy:cart") return;
+      addToYourCart(e.data.vendorId, e.data.items); // your own cart code
+    });
 
 ## Step 4: Test on your testnet
 
@@ -111,6 +132,8 @@ For example, after `talk2buy:confirmed` you might close the dialog and open your
    - Before ordering is connected, the assistant says ordering in chat isn't available yet and
      points to your site.
    - After it's connected, the customer sees their orders and a **Confirm** button.
+   - If your own checkout takes the cart, your page gets one `talk2buy:cart` message per shop
+     and the assistant says the cart is in your checkout.
 5. Press the close button. The dialog should close.
 
 If the frame is blank or refuses to load, your domain isn't on the project's allowed list yet.
@@ -126,12 +149,12 @@ Send us the exact domain.
 
 - Only the domains you give us can open the chat. Other sites are blocked by the browser.
 - Messages from the chat go only to the page that opened it.
-- Prices and stock are always re-checked with your API before an order is created.
+- Prices and stock are always re-checked with your API before a cart is handed off or an order is created.
 
 ## Good to know
 
 - Shops that are closed don't appear in results, so late at night the assistant may find nothing.
 - Delivery or preparation time is shown as your store reports it. If your store only gives
   preparation time, the assistant says "ready in" rather than promising arrival.
-- Ordering on your store is turned on once we have your API credentials and know how your
-  customer login works (see "What we need from you").
+- Until ordering is set up either way, the assistant tells customers to order through your
+  website's checkout.

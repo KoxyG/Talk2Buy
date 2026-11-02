@@ -5,6 +5,7 @@
 //   { type: "talk2buy:close" }                         the customer pressed the close button
 //   { type: "talk2buy:orders", orders, total }         orders wait for the customer's Confirm
 //   { type: "talk2buy:confirmed", orderIds }           the customer confirmed them
+//   { type: "talk2buy:cart", vendorId, vendorSlug, items }   one per shop, for the host's own checkout
 // Messages go only to the page that framed this one, never to "*".
 
 import { mount, type WidgetEvent, type WidgetOptions } from "@talk2buy/widget";

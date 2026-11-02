@@ -20,6 +20,7 @@ export { sql } from "./db";
 export type { ToolContext } from "./tools/products";
 export type { SearchProductsResult, ProductCard } from "./tools/products";
 export type { CartView, CreateOrderResult } from "./tools/cart";
+export type { HandoffCart } from "./adapters";
 export { confirmOrder } from "./tools/cart";
 export { getOrderUpdates, type OrderUpdate } from "./tools/orders";
 

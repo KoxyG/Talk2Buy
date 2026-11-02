@@ -113,6 +113,7 @@ export function App(props: AppProps) {
     const onEvent = (event: ChatEvent) => {
       if (event.type === "session") return setSessionId(event.session_id);
       if (event.type === "orders") props.onEvent?.({ type: "orders", orders: event.orders, total: event.total });
+      if (event.type === "handoff") return event.carts.forEach((c) => props.onEvent?.({ type: "cart", ...c }));
       setEntries((list) => {
         const last = list[list.length - 1];
         switch (event.type) {

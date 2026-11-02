@@ -21,6 +21,8 @@ export type CartView = {
 
 export type OrderSummary = { order_id: string; shop: string; items: { name: string; quantity: number; price: number }[]; total: number };
 
+export type HandoffCart = { vendorId: string; vendorSlug?: string; items: { productId: string; quantity: number; variantId?: string }[] };
+
 export type OrderUpdate = {
   order_id: string;
   shop: string;
@@ -36,6 +38,7 @@ export type ChatEvent =
   | { type: "products"; products: ProductCard[]; note?: string; corrections: { from: string; to: string }[] }
   | { type: "cart"; cart: CartView }
   | { type: "orders"; orders: OrderSummary[]; total: number }
+  | { type: "handoff"; carts: HandoffCart[] }
   | { type: "error"; message: string };
 
 export type Client = { apiUrl: string; projectId: string; getUserToken?: () => Promise<string | null> | string | null };

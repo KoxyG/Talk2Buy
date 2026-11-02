@@ -7,6 +7,7 @@ import {
   toolDefinitions,
   type CartView,
   type CreateOrderResult,
+  type HandoffCart,
   type SearchProductsResult,
   type ToolContext,
 } from "@talk2buy/tools";
@@ -21,6 +22,7 @@ export type AgentEvent =
   | { type: "text"; delta: string }
   | { type: "products"; query: string; corrections: SearchProductsResult["corrections"]; products: SearchProductsResult["products"]; note?: string }
   | { type: "cart"; cart: CartView }
+  | { type: "handoff"; carts: HandoffCart[] }
   | { type: "orders"; orders: Extract<CreateOrderResult, { status: "awaiting_confirmation" }>["orders"]; total: number };
 
 export type AgentInput = {
@@ -111,7 +113,9 @@ function toEvent(tool: string, result: unknown): AgentEvent | null {
   if (tool === "build_cart" || tool === "update_cart") return { type: "cart", cart: result as CartView };
   if (tool === "create_order") {
     const r = result as Exclude<CreateOrderResult, { error: string }>;
-    return r.status === "cart_changed" ? { type: "cart", cart: r.cart } : { type: "orders", orders: r.orders, total: r.total };
+    if (r.status === "cart_changed") return { type: "cart", cart: r.cart };
+    if (r.status === "handed_off") return { type: "handoff", carts: r.carts };
+    return { type: "orders", orders: r.orders, total: r.total };
   }
   return null;
 }

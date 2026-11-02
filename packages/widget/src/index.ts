@@ -2,7 +2,7 @@
 // host page's styles and the widget's never mix.
 
 import { h, render } from "preact";
-import type { OrderSummary } from "./api";
+import type { HandoffCart, OrderSummary } from "./api";
 import { App } from "./App";
 import type { Language } from "./i18n";
 import { styles } from "./styles";
@@ -12,7 +12,8 @@ export type Theme = "light" | "dark";
 // What the widget reports to the page around it.
 export type WidgetEvent =
   | { type: "orders"; orders: OrderSummary[]; total: number } // waiting for the customer's Confirm
-  | { type: "confirmed"; orderIds: string[] };
+  | { type: "confirmed"; orderIds: string[] }
+  | ({ type: "cart" } & HandoffCart); // one per shop, for the host's own cart and checkout
 
 export type WidgetOptions = {
   projectId: string;
