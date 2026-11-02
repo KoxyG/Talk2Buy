@@ -1,9 +1,9 @@
 # Talk2Buy
 
 **Order anything the way you'd ask a friend.** Talk2Buy is an AI shopping assistant for local
-Nigerian shops that speaks English and Pidgin. Tell it what you need, your budget and how fast you
-need it. It finds real products from nearby shops, builds your cart, places your order and confirms
-your payment.
+shops that speaks English and Nigerian Pidgin, typed or spoken. Tell it what you need, your budget
+and how fast you need it. It finds real products from nearby shops, builds your cart, places your
+order and confirms your payment.
 
 > "Abeg find me jollof wey no pass 3k, make e reach me before 2pm."
 >
@@ -18,10 +18,13 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 ## How it works
 
 - **Agent API** (`services/agent`): a tool-calling loop on Meta models that turns a chat message
-  into product searches, carts and orders.
-- **Tools API** (`services/tools`): the only service that reads product, order and payment data.
-- **Chat widget** (`packages/widget`): drop-in script tag or React component.
-- **Demo page** (`apps/demo`): standalone Next.js page used as the submission link.
+  into product searches, carts and orders. Also transcribes voice clips.
+- **Tools API** (`services/tools`): the only service that reads product, order and payment data,
+  through a store adapter chosen per project (see [Stores](#stores)).
+- **Chat widget** (`packages/widget`): script tag, React component, or the hosted `/embed` page
+  that host sites open in a dialog.
+- **Demo app** (`apps/demo`): the landing page and live demo, the `/embed` page, and `/contact`
+  (a form that emails the team).
 - **Evaluation** (`eval`): 50 test requests in English and Pidgin, scored per model.
 
 ## Models
@@ -51,6 +54,20 @@ as a realtime connection on the Meta Model API, which our host can't reach.
 - Unknown Pidgin or slang is looked up in a glossary, then the web, and the lookup returns a
   meaning only, never products or prices.
 
+## Stores
+
+Each project row in `projects` names its store adapter (`adapter`) and that store's settings
+(`adapter_config`). Adapters read a store's existing API as it is; the store changes nothing.
+
+| Adapter | Store | Status |
+|---|---|---|
+| `sample` | Made-up shops in 7 Nigerian cities, with real opening hours and simulated payments | Full ordering |
+| `choppaddi` | [Choppaddi](https://www-testnet.choppaddi.cloud) testnet, config `{"apiUrl": …}` | Search and cart; ordering waits for Choppaddi API keys |
+
+Adapters say whether their times are delivery or preparation (`etaKind`), and stores that can't
+take chat orders yet set `ordersConnected: false`, so the agent points customers to the store's
+own site. Onboarding another store on a supported platform is a new `projects` row.
+
 ## Evaluation
 
 50 requests (half in Pidgin: food, groceries, shopping lists, payment and delivery questions),
@@ -79,12 +96,15 @@ Run the agent and its checks:
     pnpm --filter @talk2buy/tools try-cart     # carts, orders and confirm
     pnpm --filter @talk2buy/agent try-agent    # eval requests through the agent
     pnpm --filter @talk2buy/agent try-order    # a full chat order, list to confirmed
+    pnpm --filter @talk2buy/widget build       # build the widget the demo uses (again after widget changes)
     pnpm --filter @talk2buy/demo dev           # demo page on http://localhost:3000 (agent must be running)
 
 Add the widget to any site with a script tag (build it with `pnpm --filter @talk2buy/widget build`):
 
     <script src="talk2buy.js" data-project-id="sample" data-api-url="http://localhost:8787"
             data-areas="Lagos,Abuja" data-theme="dark" defer></script>
+
+The script isn't hosted yet; businesses embed the hosted page below.
 
 Or in React:
 
@@ -105,7 +125,8 @@ it. The page reports to the host with `postMessage`: `talk2buy:ready`, `talk2buy
 `talk2buy:orders` (orders waiting for the customer's Confirm) and `talk2buy:confirmed`.
 
     <button id="order-ai">Order with AI</button>
-    <dialog id="talk2buy" style="padding:0;width:420px;height:680px;border:0;border-radius:20px">
+    <dialog id="talk2buy" style="padding:0;border:0;border-radius:20px;
+            width:min(420px,100vw);height:min(680px,100dvh)">
       <iframe src="https://talk2buy.vercel.app/embed?project=YOUR_PROJECT&voice&feedback"
               allow="microphone" style="width:100%;height:100%;border:0"></iframe>
     </dialog>
@@ -123,6 +144,9 @@ URL settings: `project`, `theme` (`dark`), `language` (`pcm`), `color`, `area` o
 (comma-separated), `voice` and `feedback`. `allow="microphone"` is needed for voice: browsers block
 the microphone in a frame from another domain unless the host grants it.
 
+Full steps for businesses (what we need from them, settings, events, testing):
+[docs/BUSINESS_INTEGRATION.md](docs/BUSINESS_INTEGRATION.md).
+
 ## Deployment
 
 **Agent API (Render, Node):**
@@ -138,9 +162,12 @@ the microphone in a frame from another domain unless the host grants it.
 **Demo page (Vercel):**
 
 - Root directory: `apps/demo`
-- Environment: `NEXT_PUBLIC_AGENT_URL` set to the agent's URL (public; it is only an address)
+- Environment: `NEXT_PUBLIC_AGENT_URL` set to the agent's URL (public; it is only an address), and
+  for the contact form `RESEND_API_KEY` and `CONTACT_TO_EMAIL` (the inbox that receives requests).
+  Locally these go in `apps/demo/.env.local`; the demo doesn't read the root `.env`.
 
-**Database (Supabase):** run the files in `services/tools/db/migrations` in order in the SQL editor.
+**Database (Supabase):** run the files in `services/tools/db/migrations` in order in the SQL editor,
+then the project rows in `services/tools/db/seeds` (`001` the sample store, `002` Choppaddi).
 Feedback from the widget lands in the `feedback` table:
 
     select created_at, rating, question, reply, comment, model from feedback order by created_at desc;
