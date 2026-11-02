@@ -124,12 +124,34 @@ main .lead { margin: 0 0 32px; }
 .steps h3 { margin: 0 0 6px; font-size: 22px; font-weight: 600; }
 .steps p { margin: 0; color: var(--muted); }
 
-.embeds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.embeds { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 820px; }
 .embeds figure { margin: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); overflow: hidden; }
 .embeds figcaption { padding: 12px 18px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; color: var(--accent); }
 .embeds pre { margin: 0; padding: 18px; overflow-x: auto; font-size: 13px; line-height: 1.7; }
 .embeds code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .note { max-width: 680px; margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+
+.arrow-link { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; color: var(--accent); }
+.arrow-link span { transition: transform 0.2s; }
+.arrow-link:hover span, .arrow-link:focus-visible span { transform: translateX(4px); }
+.contact-page { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+.contact-page h1 { margin: 0 0 12px; }
+.contact-page .lead { margin: 0 0 32px; }
+
+.contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 720px; }
+.contact label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.contact .wide { grid-column: 1 / -1; }
+.contact input, .contact textarea {
+  font: inherit; font-weight: 400; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
+}
+.contact input:focus, .contact textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.contact textarea { resize: vertical; }
+.contact .trap { position: absolute; left: -9999px; }
+.contact .send { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.contact .status { margin: 0; font-size: 14px; }
+.contact .status.sent { color: var(--accent); }
+.contact .status.error { color: #e5484d; }
 
 .notice {
   margin-top: 96px; padding: 48px 32px; text-align: center;
@@ -147,4 +169,5 @@ footer { padding: 24px; border-top: 1px solid var(--border); text-align: center;
   .stats div + div { border-left: 0; border-top: 1px solid var(--border); }
   .examples, .steps { grid-template-columns: 1fr; }
   .embeds { grid-template-columns: 1fr; }
+  .contact { grid-template-columns: 1fr; }
 }

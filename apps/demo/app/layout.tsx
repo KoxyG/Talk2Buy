@@ -6,7 +6,7 @@ const sans = Urbanist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Talk2Buy",
-  description: "Order food and groceries from local Nigerian shops by chatting, in English or Pidgin.",
+  description: "Order food and groceries from local shops by chatting or speaking, in English or Nigerian Pidgin.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
