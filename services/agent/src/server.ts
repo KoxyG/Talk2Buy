@@ -5,6 +5,7 @@
 // POST /feedback: thumbs up/down (and an optional comment) on one assistant reply.
 // POST /transcribe: a short voice clip in, the customer's words out (for the input box).
 // GET /projects/:id/embed: the sites allowed to frame the project's /embed page.
+// GET/POST /whatsapp: Meta's webhook for the WhatsApp channel (whatsapp.ts).
 
 import { serve } from "@hono/node-server";
 import { confirmOrder, getOrderUpdates, sql } from "@talk2buy/tools";
@@ -14,6 +15,7 @@ import { streamSSE } from "hono/streaming";
 import { runAgent } from "./agent";
 import { DEFAULT_MODEL } from "./models";
 import { transcribe } from "./transcribe";
+import { whatsapp } from "./whatsapp";
 
 const PORT = Number(process.env.AGENT_PORT ?? 8787);
 const MAX_MESSAGE_LENGTH = 2000;
@@ -194,6 +196,9 @@ app.get("/projects/:id/embed", async (c) => {
   if (!project) return c.json({ error: "Unknown project" }, 404);
   return c.json({ allowed_domains: project.allowed_domains });
 });
+
+// No CORS: Meta calls it server to server, and its signature check is the protection.
+app.route("/whatsapp", whatsapp);
 
 app.get("/health", (c) => c.json({ ok: true }));
 
