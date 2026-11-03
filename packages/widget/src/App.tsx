@@ -92,7 +92,8 @@ export function App(props: AppProps) {
     if (!open) recording.current?.stop();
   }, [open]);
 
-  async function ask(text: string, voice = false) {
+  // `send` replaces what goes to the assistant, e.g. with a tapped card's product_id; the chat shows `text`.
+  async function ask(text: string, voice = false, send?: string) {
     const message = text.trim();
     if (!message || busy) return;
     setOpen(true);
@@ -133,7 +134,7 @@ export function App(props: AppProps) {
     };
 
     try {
-      await sendMessage(props, { session_id: sessionId, message, area, voice }, onEvent);
+      await sendMessage(props, { session_id: sessionId, message: send ?? message, area, voice }, onEvent);
     } catch {
       setEntries((e) => [...e, { kind: "error", text: t.error }]);
     } finally {
@@ -286,7 +287,7 @@ export function App(props: AppProps) {
                 </div>
               );
             case "products":
-              return <Products entry={entry} t={t} disabled={busy} onAdd={(p) => ask(t.added(p.name, p.shop))} />;
+              return <Products entry={entry} t={t} disabled={busy} onAdd={(p) => ask(t.added(p.name, p.shop), false, `${t.added(p.name, p.shop)} (product_id ${p.id})`)} />;
             case "cart":
               return <Cart cart={entry.cart} t={t} canOrder={i === latestCart && latestOrders < latestCart && entry.cart.total > 0}
                 disabled={busy} onOrder={() => ask(t.placeOrderMessage)} />;

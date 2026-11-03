@@ -81,6 +81,7 @@ export const buildCartDefinition = {
               quantity: { type: "integer", description: "How many, default 1" },
               size: { type: "string", description: "Weight or volume if given, e.g. '5kg', '1 litre'" },
               unit: { type: "string", description: "Pack type if given, e.g. 'tin', 'carton', 'crate', 'paint', 'derica', 'sachet'" },
+              max_price: { type: "number", description: "The customer's budget for one of this item in naira, if given" },
             },
             required: ["query"],
             additionalProperties: false,

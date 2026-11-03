@@ -39,7 +39,7 @@ export type CartView = {
 
 type CartRow = { id: string; items: CartItem[]; items_not_found: NotFound[] };
 
-export type RequestedItem = { query: string; quantity?: number; size?: string; unit?: string };
+export type RequestedItem = { query: string; quantity?: number; size?: string; unit?: string; max_price?: number };
 export type BuildCartArgs = { items: RequestedItem[] };
 export type UpdateCartArgs = { changes: { product_id?: string; query?: string; quantity: number }[] };
 
@@ -178,7 +178,7 @@ async function addItem(item: RequestedItem, quantity: number, ctx: ToolContext, 
 // list isn't split across shops (and delivery fees) to save a few naira.
 async function pick(item: RequestedItem, ctx: ToolContext, shopsInCart: Set<string>) {
   const query = [item.size, item.query, item.unit].filter(Boolean).join(" ");
-  const { results, note } = await findProducts({ query }, ctx);
+  const { results, note } = await findProducts({ query, max_price: item.max_price }, ctx);
   const top = results[0];
   if (!top) return null;
   const sameShop = results.find((p) =>

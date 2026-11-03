@@ -51,3 +51,24 @@ export function narrowBySize(results: ProductResult[], query: string): { results
   const label = wanted.size === undefined ? wanted.unit : `${wanted.size}${wanted.unit === "kg" ? "kg" : ` ${wanted.unit}`}`;
   return { results, note: `No ${label} option found; these are other sizes.` };
 }
+
+const words = (text: string) => text.toLowerCase().split(/[^a-z]+/).filter(Boolean).map((w) => w.replace(/s$/, ""));
+
+// Closest name first: the exact name, then names with more of the query's words and fewer others;
+// the cheapest first among equally close names. "water" -> "water" (₦200) before
+// "One pack of water" (₦200, more words) and "waterimages" (₦3,000, no word matches).
+export function rankByName(results: ProductResult[], query: string): ProductResult[] {
+  const want = words(query);
+  const keys = new Map(results.map((p) => {
+    const have = words(p.name);
+    const hits = want.filter((w) => have.includes(w)).length;
+    const exact = hits === want.length && have.length === hits ? 0 : 1;
+    return [p, [exact, want.length - hits, have.length - hits, p.price]];
+  }));
+  return [...results].sort((a, b) => {
+    const x = keys.get(a)!;
+    const y = keys.get(b)!;
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
+    return 0;
+  });
+}

@@ -1,7 +1,7 @@
 // search_products and get_product: the only way the model sees products and prices.
 
 import { getAdapter, type Category, type EtaKind, type ProductResult } from "../adapters";
-import { applyFilters, isOpen, narrowBySize, stripUnitWords } from "../search/filters";
+import { applyFilters, isOpen, narrowBySize, rankByName, stripUnitWords } from "../search/filters";
 import { correctSpelling, LOOSE, STRICT, type Correction } from "../search/spelling";
 
 // Set by the server from the session, never by the model. budget limits slow lookups per message.
@@ -76,7 +76,7 @@ export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): 
 
   const narrowed = narrowBySize(found, query);
   note = [note, narrowed.note].filter(Boolean).join(" ") || undefined;
-  return { query, corrections, results: narrowed.results, ...(note && { note }) };
+  return { query, corrections, results: rankByName(narrowed.results, query), ...(note && { note }) };
 }
 
 export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<SearchProductsResult> {
