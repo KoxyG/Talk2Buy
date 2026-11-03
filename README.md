@@ -2,8 +2,8 @@
 
 **Order anything the way you'd ask a friend.** Talk2Buy is an AI shopping assistant for local
 shops that speaks English and Nigerian Pidgin, typed or spoken. Tell it what you need, your budget
-and how fast you need it. It finds real products from nearby shops, builds your cart, places your
-order and confirms your payment.
+and how fast you need it. It finds real products from nearby shops, builds your cart, and sends
+it to the store's own checkout or places the order for you to confirm. On the web or on WhatsApp.
 
 > "Abeg find me jollof wey no pass 3k, make e reach me before 2pm."
 >
@@ -18,7 +18,8 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 ## How it works
 
 - **Agent API** (`services/agent`): a tool-calling loop on Meta models that turns a chat message
-  into product searches, carts and orders. Also transcribes voice clips.
+  into product searches, carts and orders. Also transcribes voice clips, and answers WhatsApp
+  messages through Meta's webhook (`/whatsapp`).
 - **Tools API** (`services/tools`): the only service that reads product, order and payment data,
   through a store adapter chosen per project (see [Stores](#stores)).
 - **Chat widget** (`packages/widget`): script tag, React component, or the hosted `/embed` page
@@ -26,6 +27,20 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Indie Developer Track
 - **Demo app** (`apps/demo`): the landing page and live demo, the `/embed` page, and `/contact`
   (a form that emails the team).
 - **Evaluation** (`eval`): 50 test requests in English and Pidgin, scored per model.
+
+```mermaid
+flowchart LR
+  C([Customer]) -->|types or speaks| W[Chat widget<br/>script, React or /embed]
+  C -->|WhatsApp| WA[Meta WhatsApp<br/>Cloud API]
+  W -->|POST /chat| A[Agent API<br/>tool-calling loop]
+  WA -->|webhook| A
+  A <-->|chat + tool calls| M[Muse Spark<br/>Meta / Baseten]
+  A --> T[Tools<br/>search, cart, order, status]
+  T --> AD[Store adapter<br/>per project]
+  AD -->|store's own API| S[(Host store<br/>sample or Choppaddi)]
+  T --> DB[(Supabase<br/>projects, carts, chats, glossary, eval)]
+  W -.->|talk2buy:cart| H[Host site checkout]
+```
 
 ## Models
 
@@ -48,7 +63,8 @@ as a realtime connection on the Meta Model API, which our host can't reach.
 
 - Prices and totals come only from the store. The eval checks every ₦ amount in a reply
   against that turn's tool results.
-- The model cannot confirm an order. Only the customer's confirm button can.
+- The model cannot confirm an order. Only the customer's confirm button can, or, for stores with
+  their own checkout, the customer pays there after saying yes to the exact items and prices.
 - The agent can read payment status but cannot start or move payments.
 - Phone numbers and addresses never reach the model.
 - Unknown Pidgin or slang is looked up in a glossary, then the web, and the lookup returns a
@@ -62,22 +78,33 @@ Each project row in `projects` names its store adapter (`adapter`) and that stor
 | Adapter | Store | Status |
 |---|---|---|
 | `sample` | Made-up shops in 7 Nigerian cities, with real opening hours and simulated payments | Full ordering |
-| `choppaddi` | [Choppaddi](https://www-testnet.choppaddi.cloud) testnet, config `{"apiUrl": …}` | Search and cart; ordering waits for Choppaddi API keys |
+| `choppaddi` | [Choppaddi](https://www-testnet.choppaddi.cloud) testnet, config `{"apiUrl": …}` | Search, cart and hand-off to Choppaddi's own checkout, with product variants |
 
-Adapters say whether their times are delivery or preparation (`etaKind`), and stores that can't
-take chat orders yet set `ordersConnected: false`, so the agent points customers to the store's
-own site. Onboarding another store on a supported platform is a new `projects` row.
+Adapters say whether their times are delivery or preparation (`etaKind`) and how orders happen:
+
+- **Ordering in the chat** (default): pending orders the customer confirms with a button.
+- **Hand-off** (`checkout: "handoff"`): after the customer says yes, the re-checked cart is posted
+  to the host page as `talk2buy:cart`, one message per shop, for the store's own checkout. No API
+  keys or customer tokens are shared.
+- **Not yet** (`ordersConnected: false`): the agent points customers to the website's checkout.
+
+Onboarding another store on a supported platform is a new `projects` row.
 
 ## Evaluation
 
 50 requests (half in Pidgin: food, groceries, shopping lists, payment and delivery questions),
 scored on tool choice, filters, cart contents, safety behaviour and invented prices.
 
-| Model | Correct | Median reply |
-|---|---|---|
-| Muse Spark 1.3 (default) | 100% | 4.8s |
-| Muse Wonder | 100% | 8.0s |
-| Muse Spark Open | 100% | 4.7s |
+| Model | Oct 29 | Nov 3 | Median reply (Nov 3) |
+|---|---|---|---|
+| Muse Spark 1.3 (default) | 100% | not run | 4.8s (Oct 29) |
+| Muse Wonder | 100% | not run | 8.0s (Oct 29) |
+| Muse Spark Open (live demo) | 100% | 100% | 5.1s |
+
+The Nov 3 run re-checks the live model after the hand-off, ranking and prompt changes, on Baseten
+to save Meta credits. Its first try scored 98%: one reply worked out "₦980 over your budget"
+itself, which counts as an invented price. The prompt now says to give the total instead, and
+the re-run scored 100%. Results are in `eval/results/`.
 
 Run it with `pnpm eval` (options: `--models spark,wonder`, `--only F01,G13`).
 
@@ -122,7 +149,9 @@ The widget runs in a shadow root, so it doesn't clash with the host site's style
 Host sites can also open the hosted chat page in a frame (a popup, side panel or page), the way
 hosted KYC and checkout pages are embedded. Only sites in the project's `allowed_domains` can frame
 it. The page reports to the host with `postMessage`: `talk2buy:ready`, `talk2buy:close`,
-`talk2buy:orders` (orders waiting for the customer's Confirm) and `talk2buy:confirmed`.
+`talk2buy:orders` (orders waiting for the customer's Confirm), `talk2buy:confirmed`, and
+`talk2buy:cart` (for stores using their own checkout: one per shop, with `vendorId`,
+`vendorSlug` and `items`).
 
     <button id="order-ai">Order with AI</button>
     <dialog id="talk2buy" style="padding:0;border:0;border-radius:20px;
@@ -176,6 +205,17 @@ Feedback from the widget lands in the `feedback` table:
 `allowed_domains`. Add each site that embeds the widget:
 
     update projects set allowed_domains = array_append(allowed_domains, 'your-site.com') where id = 'sample';
+
+**WhatsApp:** in the Meta app, set the webhook URL to `https://<agent>/whatsapp` with
+`WHATSAPP_VERIFY_TOKEN`, and subscribe to `messages`. Set `WHATSAPP_TOKEN` and
+`WHATSAPP_APP_SECRET` on the agent (the secret checks each webhook's signature). Then link a
+number to a project:
+
+    update projects set whatsapp_phone_number_id = '<Meta phone number ID>' where id = 'sample';
+
+Customers pick their city from the project's `areas`. Phone numbers are never stored: chats are
+keyed by a keyed hash. Hand-off stores can't use WhatsApp yet, since there is no host page to
+receive the cart.
 
 ## Project plan
 
