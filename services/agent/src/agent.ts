@@ -16,6 +16,7 @@ import { DEFAULT_MODEL, getModel, type ModelId } from "./models";
 import { systemPrompt, VOICE_NOTE } from "./prompt";
 
 const MAX_STEPS = 5;
+const LAST_STEP = "No more tool calls this turn. Reply to the customer now with what the tools have returned.";
 const HISTORY_TURNS = 10; // customer messages kept as context
 
 export type AgentEvent =
@@ -60,10 +61,12 @@ export async function runAgent(input: AgentInput, emit: (e: AgentEvent) => void 
   const total: AgentUsage = { promptTokens: 0, cachedTokens: 0, completionTokens: 0, reasoningTokens: 0 };
 
   for (let step = 1; step <= MAX_STEPS; step++) {
-    // On the last step, tools are withheld so the model has to answer.
+    // On the last step, tools are withheld so the model has to answer, and it's told so: without
+    // the note it sometimes writes a tool call out as text, which would reach the customer.
     const tools = step < MAX_STEPS ? toolDefinitions : undefined;
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt(input.area, now, input.voice) }, ...history, asked, ...added.slice(1),
+      ...(tools ? [] : [{ role: "system" as const, content: LAST_STEP }]),
     ];
 
     const started = performance.now();
