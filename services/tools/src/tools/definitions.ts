@@ -46,9 +46,10 @@ export const lookupTermDefinition = {
   function: {
     name: "lookup_term",
     description:
-      "Look up what a Pidgin, slang or local food word means, before searching. Returns a meaning " +
-      "and a suggested search query, never products or prices. If confidence is 'none', ask the " +
-      "customer one short question about the word.",
+      "Look up what a Pidgin, slang, local food or brand word means, before searching. Returns a meaning, " +
+      "a suggested search query and related words (other names, similar items, what it is eaten with, made " +
+      "with or used in), never products or prices. If confidence is 'none', ask the customer one short " +
+      "question about the word.",
     parameters: {
       type: "object",
       properties: { term: { type: "string", description: "The unclear word or phrase, as the customer wrote it" } },
