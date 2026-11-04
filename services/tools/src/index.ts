@@ -8,6 +8,7 @@ import {
   getDeliveryEtaDefinition,
   getPaymentStatusDefinition,
   getProductDefinition,
+  listShopsDefinition,
   lookupTermDefinition,
   searchProductsDefinition,
   updateCartDefinition,
@@ -15,6 +16,7 @@ import {
 import { lookupTerm, type LookupTermArgs } from "./tools/lookup-term";
 import { getDeliveryEta, getPaymentStatus, type OrderStatusArgs } from "./tools/orders";
 import { getProduct, searchProducts, type GetProductArgs, type SearchProductsArgs, type ToolContext } from "./tools/products";
+import { listShops } from "./tools/shops";
 
 export { sql } from "./db";
 export type { ToolContext } from "./tools/products";
@@ -26,6 +28,7 @@ export { getOrderUpdates, type OrderUpdate } from "./tools/orders";
 
 export const toolDefinitions = [
   searchProductsDefinition,
+  listShopsDefinition,
   getProductDefinition,
   lookupTermDefinition,
   buildCartDefinition,
@@ -37,6 +40,7 @@ export const toolDefinitions = [
 
 const tools: Record<string, (args: any, ctx: ToolContext) => Promise<unknown>> = {
   search_products: (args: SearchProductsArgs, ctx) => searchProducts(args, ctx),
+  list_shops: (args: unknown, ctx) => listShops(args, ctx),
   get_product: (args: GetProductArgs, ctx) => getProduct(args, ctx),
   lookup_term: (args: LookupTermArgs, ctx) => lookupTerm(args, ctx),
   build_cart: (args: BuildCartArgs, ctx) => buildCart(args, ctx),

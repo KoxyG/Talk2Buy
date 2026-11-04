@@ -78,6 +78,8 @@ export interface StoreAdapter {
   handoff?(items: { productId: string; shopId: string; quantity: number }[]): HandoffCart[];
   searchProducts(q: ProductQuery): Promise<ProductResult[]>;
   getProduct(id: string, area: string): Promise<ProductResult | null>;
+  // Shops that deliver to area, open or closed. Missing means the store can't list them.
+  listShops?(area: string): Promise<Shop[]>;
   createOrder(items: { productId: string; quantity: number }[], customer: Customer): Promise<Order[]>; // one per shop
   confirmOrder(orderId: string, customer: Customer): Promise<Order>;
   getOrder(orderId: string, customer: Customer): Promise<Order | null>; // null if not this customer's

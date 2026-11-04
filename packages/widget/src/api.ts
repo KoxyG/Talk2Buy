@@ -1,7 +1,7 @@
 // Talks to the agent API: POST /chat (server-sent events), POST /orders/:id/confirm,
 // POST /orders/status, POST /feedback and POST /transcribe. Shapes match services/tools; prices always come from the server.
 
-export type ProductCard = { id: string; name: string; shop: string; price: number; unit: string | null; size: number | null; eta_minutes: number; eta_kind?: EtaKind };
+export type ProductCard = { id: string; name: string; shop: string; price: number; unit: string | null; size: number | null; eta_minutes: number; eta_kind?: EtaKind; open_now?: boolean; opens_at?: string };
 
 // Optional so the widget still works with an agent that doesn't send it yet (means delivery).
 export type EtaKind = "delivery" | "preparation";
@@ -12,6 +12,8 @@ export type CartView = {
     shop: string;
     eta_minutes: number;
     eta_kind?: EtaKind;
+    open_now?: boolean;
+    opens_at?: string;
     items: { product_id: string; name: string; quantity: number; price: number; line_total: number; note?: string }[];
     subtotal: number;
   }[];

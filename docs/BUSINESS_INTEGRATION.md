@@ -153,7 +153,8 @@ Send us the exact domain.
 
 ## Good to know
 
-- Shops that are closed don't appear in results, so late at night the assistant may find nothing.
+- Closed shops still appear, marked closed with when they open. Customers can add their items to the
+  cart, but can't order until the shop opens.
 - Delivery or preparation time is shown as your store reports it. If your store only gives
   preparation time, the assistant says "ready in" rather than promising arrival.
 - Until ordering is set up either way, the assistant tells customers to order through your

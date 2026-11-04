@@ -64,6 +64,10 @@ export const sampleAdapter: StoreAdapter = {
     return p ? withShop(p) : null;
   },
 
+  async listShops(area) {
+    return shops.filter((s) => s.area.toLowerCase() === area.toLowerCase()).map(({ deliveryMinutes, ...shop }) => shop);
+  },
+
   async createOrder(items, customer) {
     const byShop = new Map<string, StoredOrder>();
     for (const { productId, quantity } of items) {
