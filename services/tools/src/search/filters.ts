@@ -4,17 +4,44 @@
 import type { Day, ProductResult, Shop } from "../adapters";
 
 const DAYS: Day[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Shops keep Nigerian time (WAT, UTC+1, no daylight saving).
-export function isOpen(shop: Shop, now: Date): boolean {
-  const wat = new Date(now.getTime() + 60 * 60 * 1000);
-  const hours = shop.openingHours[DAYS[wat.getUTCDay()]!];
-  if (!hours) return false;
-  const time = wat.toISOString().slice(11, 16); // "HH:MM"
-  return time >= hours[0] && time < hours[1];
+// Nigerian time (WAT, UTC+1, no daylight saving): the weekday and "HH:MM".
+function wat(now: Date): { day: number; time: string } {
+  const t = new Date(now.getTime() + 60 * 60 * 1000);
+  return { day: t.getUTCDay(), time: t.toISOString().slice(11, 16) };
 }
 
-export type Filters = { area: string; category?: string; maxPrice?: number; maxEtaMinutes?: number; now: Date };
+type Hours = Pick<Shop, "openingHours">;
+
+// Shops keep Nigerian time. Hours that close before they open run past midnight ("18:00"-"02:00").
+export function isOpen(shop: Hours, now: Date): boolean {
+  const { day, time } = wat(now);
+  const today = shop.openingHours[DAYS[day]!];
+  if (today && time >= today[0] && (today[0] > today[1] || time < today[1])) return true;
+  const yesterday = shop.openingHours[DAYS[(day + 6) % 7]!];
+  return !!yesterday && yesterday[0] > yesterday[1] && time < yesterday[1];
+}
+
+// When a closed shop next opens: "08:00" later today, otherwise "Mon 08:00"; null if it never does.
+export function opensAt(shop: Hours, now: Date): string | null {
+  const { day, time } = wat(now);
+  for (let i = 0; i <= 7; i++) {
+    const hours = shop.openingHours[DAYS[(day + i) % 7]!];
+    if (hours && (i > 0 || hours[0] > time)) return i === 0 ? hours[0] : `${LABELS[(day + i) % 7]} ${hours[0]}`;
+  }
+  return null;
+}
+
+// What tools report about a shop's hours: open_now, and when a closed shop opens.
+export function openStatus(shop: Hours, now: Date): { open_now: boolean; opens_at?: string } {
+  if (isOpen(shop, now)) return { open_now: true };
+  const opens = opensAt(shop, now);
+  return { open_now: false, ...(opens && { opens_at: opens }) };
+}
+
+// Closed shops are kept: customers see them, marked closed, and may add them to the cart.
+export type Filters = { area: string; category?: string; maxPrice?: number; maxEtaMinutes?: number };
 
 export function applyFilters(results: ProductResult[], f: Filters): ProductResult[] {
   return results.filter((p) =>
@@ -22,8 +49,7 @@ export function applyFilters(results: ProductResult[], f: Filters): ProductResul
     (!f.category || p.category === f.category) &&
     (f.maxPrice === undefined || p.price <= f.maxPrice) &&
     (f.maxEtaMinutes === undefined || p.etaMinutes <= f.maxEtaMinutes) &&
-    p.inStock &&
-    isOpen(p.shop, f.now));
+    p.inStock);
 }
 
 const UNIT_WORDS = ["carton", "crate", "paint", "derica", "tin", "sachet", "loaf", "bottle", "cup", "bag", "basket", "pack", "bar", "tube"];

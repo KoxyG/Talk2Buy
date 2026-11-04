@@ -172,6 +172,7 @@ button { cursor: pointer; }
 .card .line span:last-child { white-space: nowrap; }
 .card .total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--t2b-border); }
 .card .missing { margin-top: 8px; font-size: 13px; color: var(--t2b-danger); }
+.product .meta.closed, .card .shop span.closed { color: var(--t2b-danger); }
 .card .status { font-size: 13px; color: var(--t2b-muted); }
 .card .status.paid { color: var(--t2b-success); font-weight: 600; }
 .card .status.failed { color: var(--t2b-danger); }

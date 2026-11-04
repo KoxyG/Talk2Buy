@@ -6,7 +6,8 @@ export const searchProductsDefinition = {
   function: {
     name: "search_products",
     description:
-      "Search real products from shops that deliver to the customer's city and are open now. " +
+      "Search real products from shops that deliver to the customer's city. Shops that are closed now " +
+      "are included, with open_now false and opens_at. " +
       "Always call this before recommending anything; never invent products or prices. " +
       "Write the query in plain English with correct spelling ('jollof rice', not 'jolof'), and " +
       "turn Pidgin into filters ('wey no pass 3k' means max_price 3000). Keep sizes and units in " +
@@ -26,6 +27,17 @@ export const searchProductsDefinition = {
       required: ["query"],
       additionalProperties: false,
     },
+  },
+} as const;
+
+export const listShopsDefinition = {
+  type: "function",
+  function: {
+    name: "list_shops",
+    description:
+      "List the shops that deliver to the customer's city, open or closed now, with when closed ones open. " +
+      "Use it when the customer asks which shops or vendors are near them. Returns no products or prices.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 } as const;
 

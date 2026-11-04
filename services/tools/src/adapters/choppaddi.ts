@@ -31,9 +31,12 @@ type ChoppaddiProduct = {
 
 const DAYS: Record<string, Day> = { monday: "mon", tuesday: "tue", wednesday: "wed", thursday: "thu", friday: "fri", saturday: "sat", sunday: "sun" };
 
-// "6:30 AM" -> "06:30", "11:30 PM" -> "23:30".
+// "6:30 AM" -> "06:30", "11:30 PM" -> "23:30"; "8:00" -> "08:00", as Choppaddi's site reads it.
 function to24h(time: string | null): string | null {
-  const m = time?.trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+  const t = time?.trim() ?? "";
+  const h24 = t.match(/^(\d{1,2}):([0-5]\d)$/);
+  if (h24) return Number(h24[1]) < 24 ? `${h24[1]!.padStart(2, "0")}:${h24[2]}` : null;
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
   if (!m) return null;
   const hour = (Number(m[1]) % 12) + (m[3]!.toUpperCase() === "PM" ? 12 : 0);
   return `${String(hour).padStart(2, "0")}:${m[2]}`;
@@ -57,7 +60,8 @@ function toShop(v: Vendor, area: string): Shop {
   const close = to24h(v.closing_time);
   const openingHours: Shop["openingHours"] = {};
   if (open && close) {
-    for (const d of v.business_days ?? []) {
+    // No business days means every day, as Choppaddi's site reads it.
+    for (const d of v.business_days?.length ? v.business_days : Object.keys(DAYS)) {
       const day = DAYS[d.toLowerCase()];
       if (day) openingHours[day] = [open, close];
     }
@@ -170,6 +174,10 @@ export function choppaddiAdapter(config: ChoppaddiConfig): StoreAdapter {
       if (!p.has_variants) return variantUuid ? null : toResult(p, v, area);
       const variant = p.variants?.find((x) => x.uuid === variantUuid);
       return variant ? toResult(p, v, area, variant) : null;
+    },
+
+    async listShops(area) {
+      return [...(await getVendors()).values()].filter((v) => inArea(v, area)).map((v) => toShop(v, area));
     },
 
     handoff(items) {

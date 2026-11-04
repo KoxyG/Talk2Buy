@@ -1,7 +1,7 @@
 // search_products and get_product: the only way the model sees products and prices.
 
 import { getAdapter, type Category, type EtaKind, type ProductResult } from "../adapters";
-import { applyFilters, isOpen, narrowBySize, rankByName, stripUnitWords } from "../search/filters";
+import { applyFilters, isOpen, narrowBySize, openStatus, rankByName, stripUnitWords } from "../search/filters";
 import { correctSpelling, LOOSE, STRICT, type Correction } from "../search/spelling";
 
 // Set by the server from the session, never by the model. budget limits slow lookups per message.
@@ -27,10 +27,12 @@ export type ProductCard = {
   size: number | null;
   eta_minutes: number;
   eta_kind: EtaKind;
+  open_now: boolean;
+  opens_at?: string;
 };
 
-const toCard = (p: ProductResult): ProductCard =>
-  ({ id: p.id, name: p.name, shop: p.shop.name, price: p.price, unit: p.unit, size: p.size, eta_minutes: p.etaMinutes, eta_kind: p.etaKind });
+const toCard = (p: ProductResult, now: Date): ProductCard =>
+  ({ id: p.id, name: p.name, shop: p.shop.name, price: p.price, unit: p.unit, size: p.size, eta_minutes: p.etaMinutes, eta_kind: p.etaKind, ...openStatus(p.shop, now) });
 
 export type SearchProductsArgs = { query: string; category?: Category; max_price?: number; max_eta_minutes?: number };
 export type SearchProductsResult = { query: string; corrections: Correction[]; products: ProductCard[]; note?: string };
@@ -41,7 +43,8 @@ export type FoundProducts = { query: string; corrections: Correction[]; results:
 // and size narrowing. Results keep full product and shop details.
 export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<FoundProducts> {
   const adapter = await getAdapter(ctx.projectId);
-  const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes, now: ctx.now ?? new Date() };
+  const now = ctx.now ?? new Date();
+  const filters = { area: ctx.area, category: args.category, maxPrice: args.max_price, maxEtaMinutes: args.max_eta_minutes };
   // anyCategory ignores the model's category; passing undefined would fall back to it.
   const find = async (query: string, anyCategory = false) => {
     const category = anyCategory ? undefined : args.category;
@@ -76,12 +79,16 @@ export async function findProducts(args: SearchProductsArgs, ctx: ToolContext): 
 
   const narrowed = narrowBySize(found, query);
   note = [note, narrowed.note].filter(Boolean).join(" ") || undefined;
-  return { query, corrections, results: rankByName(narrowed.results, query), ...(note && { note }) };
+  // Open shops first, so a cart picks one that can take the order now.
+  const ranked = rankByName(narrowed.results, query);
+  const results = [...ranked.filter((p) => isOpen(p.shop, now)), ...ranked.filter((p) => !isOpen(p.shop, now))];
+  return { query, corrections, results, ...(note && { note }) };
 }
 
 export async function searchProducts(args: SearchProductsArgs, ctx: ToolContext): Promise<SearchProductsResult> {
   const { results, ...rest } = await findProducts(args, ctx);
-  return { ...rest, products: results.slice(0, MAX_RESULTS).map(toCard) };
+  const now = ctx.now ?? new Date();
+  return { ...rest, products: results.slice(0, MAX_RESULTS).map((p) => toCard(p, now)) };
 }
 
 export type GetProductArgs = { product_id: string };
@@ -89,5 +96,5 @@ export type GetProductArgs = { product_id: string };
 export async function getProduct(args: GetProductArgs, ctx: ToolContext) {
   const p = await (await getAdapter(ctx.projectId)).getProduct(args.product_id, ctx.area);
   if (!p || p.shop.area.toLowerCase() !== ctx.area.toLowerCase()) return { error: "not_found" as const };
-  return { ...toCard(p), description: p.description, in_stock: p.inStock, open_now: isOpen(p.shop, ctx.now ?? new Date()) };
+  return { ...toCard(p, ctx.now ?? new Date()), description: p.description, in_stock: p.inStock };
 }

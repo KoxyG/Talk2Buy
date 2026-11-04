@@ -2,14 +2,14 @@
 // prices and stock always come from the store, never from the model. Confirming is not a model
 // tool: only the widget's Confirm button calls confirmOrder.
 
-import { getAdapter, type Customer, type EtaKind, type HandoffCart, type Order, type ProductResult } from "../adapters";
+import { getAdapter, type Customer, type EtaKind, type HandoffCart, type Order, type ProductResult, type Shop } from "../adapters";
 import { sql } from "../db";
-import { isOpen } from "../search/filters";
+import { isOpen, openStatus } from "../search/filters";
 import { findProducts, type ToolContext } from "./products";
 
 const MAX_ITEMS = 20;
 const MAX_QUANTITY = 99;
-const NOT_FOUND = "No match in shops that deliver to the customer and are open now";
+const NOT_FOUND = "No match in shops that deliver to the customer";
 
 export type CartItem = {
   product_id: string;
@@ -20,6 +20,7 @@ export type CartItem = {
   price: number;
   eta_minutes: number;
   eta_kind?: EtaKind; // missing in carts saved before it existed: those meant delivery
+  shop_hours?: Shop["openingHours"]; // missing in carts saved before it existed: those count as open
   note?: string;
 };
 export type NotFound = { query: string; reason: string };
@@ -30,6 +31,8 @@ export type CartView = {
     shop: string;
     eta_minutes: number;
     eta_kind: EtaKind;
+    open_now: boolean;
+    opens_at?: string;
     items: { product_id: string; name: string; quantity: number; price: number; line_total: number; note?: string }[];
     subtotal: number;
   }[];
@@ -49,7 +52,7 @@ export async function buildCart(args: BuildCartArgs, ctx: ToolContext): Promise<
   const items: CartItem[] = [];
   const notFound: NotFound[] = [];
   for (const item of requested) await addItem(item, quantityOf(item.quantity), ctx, items, notFound);
-  return view(await saveOpenCart(ctx, items, notFound));
+  return view(await saveOpenCart(ctx, items, notFound), ctx.now ?? new Date());
 }
 
 // Quantity 0 removes an item. items_not_found only lists what this update couldn't add.
@@ -75,13 +78,13 @@ export async function updateCart(args: UpdateCartArgs, ctx: ToolContext): Promis
       await addItem({ query: change.query }, quantity, ctx, items, notFound);
     }
   }
-  return view(await saveOpenCart(ctx, items, notFound));
+  return view(await saveOpenCart(ctx, items, notFound), ctx.now ?? new Date());
 }
 
 export type CreateOrderResult =
   | { error: string }
   | { status: "cart_changed"; changes: { name: string; change: "unavailable" | "price"; old_price?: number; new_price?: number }[]; cart: CartView }
-  | { status: "handed_off"; carts: HandoffCart[]; total: number; next_step: string }
+  | { status: "handed_off"; carts: HandoffCart[]; total: number; closed_shops: { shop: string; opens_at?: string }[]; next_step: string }
   | {
       status: "awaiting_confirmation";
       orders: { order_id: string; shop: string; items: { name: string; quantity: number; price: number }[]; total: number }[];
@@ -105,6 +108,8 @@ export async function createOrder(_args: unknown, ctx: ToolContext): Promise<Cre
   // Prices and stock can change while the customer decides: re-check every item first.
   const changes: Extract<CreateOrderResult, { status: "cart_changed" }>["changes"] = [];
   const items: CartItem[] = [];
+  const now = ctx.now ?? new Date();
+  const closed = new Map<string, { shop: string; opens_at?: string }>();
   for (const item of cart.items) {
     const p = await adapter.getProduct(item.product_id, ctx.area);
     if (!p || !available(p, ctx)) {
@@ -112,20 +117,29 @@ export async function createOrder(_args: unknown, ctx: ToolContext): Promise<Cre
       continue;
     }
     if (p.price !== item.price) changes.push({ name: item.name, change: "price", old_price: item.price, new_price: p.price });
-    items.push({ ...item, price: p.price, eta_minutes: p.etaMinutes, eta_kind: p.etaKind });
+    if (!isOpen(p.shop, now)) closed.set(p.shopId, { shop: p.shop.name, opens_at: openStatus(p.shop, now).opens_at });
+    items.push({ ...item, price: p.price, eta_minutes: p.etaMinutes, eta_kind: p.etaKind, shop_hours: p.shop.openingHours });
   }
   if (changes.length) {
-    return { status: "cart_changed", changes, cart: view(await saveOpenCart(ctx, items, cart.items_not_found)) };
+    return { status: "cart_changed", changes, cart: view(await saveOpenCart(ctx, items, cart.items_not_found), now) };
   }
 
+  const closedShops = [...closed.values()];
   if (handoff) {
     await sql`update carts set handed_off_at = now(), updated_at = now() where id = ${cart.id}`;
     return {
       status: "handed_off",
       carts: adapter.handoff!(items.map((i) => ({ productId: i.product_id, shopId: i.shop_id, quantity: i.quantity }))),
       total: items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-      next_step: "The cart is now in this website's checkout, where the customer finishes the order and pays.",
+      closed_shops: closedShops,
+      next_step: closedShops.length
+        ? "The cart is now in this website's checkout. Items from closed_shops can only be ordered and paid for once those shops open."
+        : "The cart is now in this website's checkout, where the customer finishes the order and pays.",
     };
+  }
+
+  if (closedShops.length) {
+    return { error: `shop_closed: ${closedShops.map((s) => (s.opens_at ? `${s.shop} opens ${s.opens_at}` : `${s.shop} has no opening hours`)).join("; ")}. The cart is kept; the customer can order once the shop opens.` };
   }
 
   const orders = await adapter.createOrder(items.map((i) => ({ productId: i.product_id, quantity: i.quantity })), customer!);
@@ -195,11 +209,12 @@ const toItem = (p: ProductResult, quantity: number, note?: string): CartItem => 
   price: p.price,
   eta_minutes: p.etaMinutes,
   eta_kind: p.etaKind,
+  shop_hours: p.shop.openingHours,
   ...(note && { note }),
 });
 
 const available = (p: ProductResult, ctx: ToolContext) =>
-  p.inStock && p.shop.area.toLowerCase() === ctx.area.toLowerCase() && isOpen(p.shop, ctx.now ?? new Date());
+  p.inStock && p.shop.area.toLowerCase() === ctx.area.toLowerCase();
 
 const quantityOf = (n: unknown) => Math.min(MAX_QUANTITY, Math.max(1, Math.round(Number(n)) || 1));
 
@@ -211,11 +226,12 @@ const nameMatches = (name: string, query: string) => {
   return want.length > 0 && want.every((w) => have.has(w));
 };
 
-function view(cart: CartRow): CartView {
+function view(cart: CartRow, now: Date): CartView {
   const shops = new Map<string, CartView["shops"][number]>();
   for (const i of cart.items) {
     let shop = shops.get(i.shop_id);
-    if (!shop) shops.set(i.shop_id, (shop = { shop: i.shop, eta_minutes: i.eta_minutes, eta_kind: i.eta_kind ?? "delivery", items: [], subtotal: 0 }));
+    const status = i.shop_hours ? openStatus({ openingHours: i.shop_hours }, now) : { open_now: true };
+    if (!shop) shops.set(i.shop_id, (shop = { shop: i.shop, eta_minutes: i.eta_minutes, eta_kind: i.eta_kind ?? "delivery", ...status, items: [], subtotal: 0 }));
     const line_total = i.price * i.quantity;
     shop.items.push({ product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.price, line_total, ...(i.note && { note: i.note }) });
     shop.subtotal += line_total;
